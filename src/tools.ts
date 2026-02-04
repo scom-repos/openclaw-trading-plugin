@@ -83,6 +83,7 @@ const Strategy = Type.Object({
 const DEFAULT_BASE_URL = "https://agent02.decom.dev";
 const DEFAULT_BOT_URL =
   "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
+const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
 
 function loadKeys(config: any): {
   privateKey: string;
@@ -134,6 +135,7 @@ function textResult(data: unknown) {
 export default function (api: any) {
   const baseUrl: string = api.config?.baseUrl ?? DEFAULT_BASE_URL;
   const tradingBotUrl: string = api.config?.tradingBotUrl ?? DEFAULT_BOT_URL;
+  const backtestEngineUrl: string = api.config?.backtestEngineUrl ?? DEFAULT_BACKTEST_ENGINE_URL;
 
   // ── Existing tools ──────────────────────────────────────────────
 
@@ -508,6 +510,19 @@ export default function (api: any) {
         body: JSON.stringify({ jobIds: params.jobIds }),
       });
       if (!res.ok) throw new Error(`get_backtest_status failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "get_backtest_result",
+    description: "Get the full result of a completed backtest job (portfolio, metrics, trades)",
+    parameters: Type.Object({
+      jobId: Type.String({ description: "Backtest job ID" }),
+    }),
+    async execute(_id: string, params: { jobId: string }) {
+      const res = await fetch(`${backtestEngineUrl}/jobs/${params.jobId}/result`);
+      if (!res.ok) throw new Error(`get_backtest_result failed: ${res.status}`);
       return textResult(await res.json());
     },
   });
