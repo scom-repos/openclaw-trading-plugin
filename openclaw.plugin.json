@@ -1,5 +1,6 @@
 {
   "id": "trading-plugin",
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -7,6 +8,14 @@
       "baseUrl": {
         "type": "string",
         "default": "https://agent02.decom.dev"
+      },
+      "tradingBotUrl": {
+        "type": "string",
+        "default": "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo"
+      },
+      "nostrPrivateKey": {
+        "type": "string",
+        "default": "${NOSTR_PRIVATE_KEY}"
       }
     }
   }
