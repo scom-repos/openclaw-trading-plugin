@@ -426,4 +426,89 @@ export default function (api: any) {
       return textResult(await res.json());
     },
   });
+
+  // ── Backtest tools ──────────────────────────────────────────────
+
+  api.registerTool({
+    name: "create_backtest",
+    description: "Create a new backtest job for an agent",
+    parameters: Type.Object({
+      agentId: Type.Number({ description: "Agent ID to backtest" }),
+      initialCapital: Type.Number({ description: "Initial capital amount" }),
+      startTime: Type.String({ description: "Start time (ISO datetime or unix timestamp)" }),
+      endTime: Type.String({ description: "End time (ISO datetime or unix timestamp)" }),
+      protocolFee: Type.Optional(Type.Number({ description: "Protocol fee override" })),
+      gasFee: Type.Optional(Type.Number({ description: "Gas fee override" })),
+      strategy: Type.Optional(Strategy),
+    }),
+    async execute(
+      _id: string,
+      params: {
+        agentId: number;
+        initialCapital: number;
+        startTime: string;
+        endTime: string;
+        protocolFee?: number;
+        gasFee?: number;
+        strategy?: Record<string, unknown>;
+      },
+    ) {
+      const { privateKey, publicKey } = loadKeys(api.config);
+      const auth = getAuthHeader(publicKey, privateKey);
+
+      const payload: Record<string, unknown> = {
+        agentId: params.agentId,
+        initialCapital: params.initialCapital,
+        startTime: params.startTime,
+        endTime: params.endTime,
+      };
+      if (params.protocolFee != null) payload.protocolFee = params.protocolFee;
+      if (params.gasFee != null) payload.gasFee = params.gasFee;
+      if (params.strategy) payload.strategy = params.strategy;
+
+      const res = await fetch(`${baseUrl}/api/backtest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: auth },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok)
+        throw new Error(`create_backtest failed: ${res.status} ${await res.text()}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "get_backtests",
+    description: "List backtests for an agent",
+    parameters: Type.Object({
+      agentId: Type.Number({ description: "Agent ID" }),
+    }),
+    async execute(_id: string, params: { agentId: number }) {
+      const { privateKey, publicKey } = loadKeys(api.config);
+      const auth = getAuthHeader(publicKey, privateKey);
+
+      const res = await fetch(`${baseUrl}/api/backtests/${params.agentId}`, {
+        headers: { Authorization: auth },
+      });
+      if (!res.ok) throw new Error(`get_backtests failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "get_backtest_status",
+    description: "Check the status of one or more backtest jobs",
+    parameters: Type.Object({
+      jobIds: Type.Array(Type.String(), { description: "Array of backtest job IDs" }),
+    }),
+    async execute(_id: string, params: { jobIds: string[] }) {
+      const res = await fetch(`${baseUrl}/api/backtests-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobIds: params.jobIds }),
+      });
+      if (!res.ok) throw new Error(`get_backtest_status failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
 }

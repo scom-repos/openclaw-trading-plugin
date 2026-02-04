@@ -19,6 +19,8 @@ Ask the user what trading strategy they want. Construct a strategy object with:
 - **rules**: entry (intent:"open") and exit (intent:"close") rules with conditions and order specs
 - **risk_manager**: stop_loss, take_profit, trailing_stop, cooldown, per_bar_limits
 
+For detailed schema references, see: `strategy-indicators`, `strategy-rules`, `strategy-risk`, and `strategy-examples` skills.
+
 If the user says something general like "EMA crossover", construct a reasonable default. Example for EMA 20/50 crossover on M15:
 ```json
 {
