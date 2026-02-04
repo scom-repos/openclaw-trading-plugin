@@ -1,0 +1,13 @@
+{
+  "id": "trading-plugin",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "default": "https://agent02.decom.dev"
+      }
+    }
+  }
+}

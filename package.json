@@ -1,0 +1,12 @@
+{
+  "name": "trading-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "openclaw": {
+    "extensions": ["./src/tools.ts"]
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "typescript": "^5.7.0"
+  }
+}
