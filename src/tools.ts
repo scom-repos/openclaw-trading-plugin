@@ -515,6 +515,19 @@ export default function (api: any) {
   });
 
   api.registerTool({
+    name: "get_backtest_job",
+    description: "Poll the progress and status of a backtest job",
+    parameters: Type.Object({
+      jobId: Type.String({ description: "Backtest job ID" }),
+    }),
+    async execute(_id: string, params: { jobId: string }) {
+      const res = await fetch(`${backtestEngineUrl}/jobs/${params.jobId}`);
+      if (!res.ok) throw new Error(`get_backtest_job failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
     name: "get_backtest_result",
     description: "Get the full result of a completed backtest job (portfolio, metrics, trades)",
     parameters: Type.Object({

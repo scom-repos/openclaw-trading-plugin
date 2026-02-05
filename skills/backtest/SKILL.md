@@ -29,10 +29,10 @@ Present a summary: agent name/ID, time range, initial capital, fees (if any), an
 ## Step 6 — Submit the backtest
 Call `create_backtest` with agentId, initialCapital, startTime, endTime, and optional protocolFee, gasFee, strategy. Save the returned `jobId`.
 
-## Step 7 — Check status and fetch results
-Call `get_backtest_status` with the jobId.
+## Step 7 — Poll progress and fetch results
+Call `get_backtest_job` with the jobId to poll its progress and status.
 - If status is **Completed**: call `get_backtest_result` with the jobId and present a summary including portfolio value, return %, win rate, max drawdown, Sharpe ratio, and trade count.
-- If still running: inform the user of progress and suggest checking again later.
+- If still running: inform the user of the current progress and suggest checking again later.
 
 ## Step 8 — Show backtest history
 Call `get_backtests` with the agentId to list past backtests for context.

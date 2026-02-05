@@ -52,9 +52,10 @@ Three config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/co
 
 ### Backtesting
 
-| Tool                  | Description                    |
-| --------------------- | ------------------------------ |
-| `create_backtest`     | Submit a backtest job          |
-| `get_backtests`       | List backtests for an agent    |
-| `get_backtest_status` | Check backtest job status      |
-| `get_backtest_result` | Get completed backtest results |
+| Tool                  | Description                          |
+| --------------------- | ------------------------------------ |
+| `create_backtest`     | Submit a backtest job                |
+| `get_backtests`       | List backtests for an agent          |
+| `get_backtest_status` | Check backtest job status            |
+| `get_backtest_job`    | Poll backtest job progress and status |
+| `get_backtest_result` | Get completed backtest results       |
