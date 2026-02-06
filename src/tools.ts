@@ -78,12 +78,22 @@ const Strategy = Type.Object({
   risk_manager: Type.Optional(RiskManagerConfig),
 });
 
+const SimulationConfig = Type.Object({
+  asset_type: Type.String({ description: '"crypto" or "stocks"' }),
+  protocol: Type.Optional(Type.String({ description: '"uniswap" or "hyperliquid" (required when asset_type is "crypto")' })),
+});
+
 // ── Constants ──────────────────────────────────────────────────────
 
 const DEFAULT_BASE_URL = "https://agent02.decom.dev";
 const DEFAULT_BOT_URL =
   "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
 const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
+
+function defaultSimulationConfig(marketType: string): { asset_type: string; protocol?: string } {
+  if (marketType === "perp") return { asset_type: "crypto", protocol: "hyperliquid" };
+  return { asset_type: "crypto", protocol: "uniswap" };
+}
 
 function loadKeys(config: any): {
   privateKey: string;
@@ -253,6 +263,7 @@ export default function (api: any) {
         Type.String({ description: "Market type", default: "spot" }),
       ),
       strategy: Type.Optional(Strategy),
+      simulationConfig: Type.Optional(SimulationConfig),
     }),
     async execute(
       _id: string,
@@ -263,6 +274,7 @@ export default function (api: any) {
         mode?: string;
         marketType?: string;
         strategy?: Record<string, unknown>;
+        simulationConfig?: { asset_type: string; protocol?: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(api.config);
@@ -277,6 +289,7 @@ export default function (api: any) {
         owner: npub,
         pubkey: publicKey,
         chainId: 1,
+        simulationConfig: params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot"),
       };
       if (params.strategy) payload.strategy = params.strategy;
       const res = await fetch(`${baseUrl}/api/agent`, {
@@ -309,6 +322,7 @@ export default function (api: any) {
         Type.String({ description: "Market type", default: "spot" }),
       ),
       strategy: Type.Optional(Strategy),
+      simulationConfig: Type.Optional(SimulationConfig),
     }),
     async execute(
       _id: string,
@@ -320,6 +334,7 @@ export default function (api: any) {
         mode?: string;
         marketType?: string;
         strategy?: Record<string, unknown>;
+        simulationConfig?: { asset_type: string; protocol?: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(api.config);
@@ -342,6 +357,7 @@ export default function (api: any) {
         mode: params.mode ?? "paper",
         signed_at: signedAt,
         market_type: params.marketType ?? "spot",
+        simulation_config: params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot"),
       };
       const signature = Signer.getSignature(body, privateKey, {
         id: "number",
