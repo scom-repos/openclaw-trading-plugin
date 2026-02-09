@@ -23,7 +23,7 @@ openclaw plugins install -l .
 
 ## 3. Configure the Plugin
 
-Edit `~/openclaw/config.json` and add the plugin config:
+Edit `~/openclaw/openclaw.json` and add the plugin config:
 
 ```json
 {
