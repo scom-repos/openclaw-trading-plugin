@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { Keys, Nip19, Signer } from "@scom/scom-signer";
+import { Keys, Nip19, Signer, Crypto } from "@scom/scom-signer";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -89,6 +89,10 @@ const DEFAULT_BASE_URL = "https://agent02.decom.dev";
 const DEFAULT_BOT_URL =
   "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
 const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
+const DEFAULT_WALLET_AGENT_URL =
+  "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent";
+const DEFAULT_SETTLEMENT_ENGINE_URL =
+  "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine";
 
 function defaultSimulationConfig(marketType: string): { asset_type: string; protocol?: string } {
   if (marketType === "perp") return { asset_type: "crypto", protocol: "hyperliquid" };
@@ -146,6 +150,8 @@ export default function (api: any) {
   const baseUrl: string = api.config?.baseUrl ?? DEFAULT_BASE_URL;
   const tradingBotUrl: string = api.config?.tradingBotUrl ?? DEFAULT_BOT_URL;
   const backtestEngineUrl: string = api.config?.backtestEngineUrl ?? DEFAULT_BACKTEST_ENGINE_URL;
+  const walletAgentUrl: string = api.config?.walletAgentUrl ?? DEFAULT_WALLET_AGENT_URL;
+  const settlementEngineUrl: string = api.config?.settlementEngineUrl ?? DEFAULT_SETTLEMENT_ENGINE_URL;
 
   // ── Existing tools ──────────────────────────────────────────────
 
@@ -249,21 +255,265 @@ export default function (api: any) {
     },
   });
 
+  // ── Live-trade tools ──────────────────────────────────────────
+
+  api.registerTool({
+    name: "generate_agent_wallet",
+    description: "Generate a new Ethereum keypair for use as a Hyperliquid agent wallet",
+    parameters: Type.Object({}),
+    async execute() {
+      // @ts-ignore - noble/hashes v2 exports require .js suffix
+      const { keccak_256 } = await import("@noble/hashes/sha3");
+      // @ts-ignore
+      const { bytesToHex: nobleHex } = await import("@noble/hashes/utils");
+      const crypto = await import("node:crypto");
+      // @ts-ignore - internal module
+      const secp = require("@scom/scom-signer/lib/curves/secp256k1");
+      const { bytesToHex } = require("@scom/scom-signer/lib/hashes/utils");
+
+      const privKey = crypto.randomBytes(32).toString("hex");
+      const ecdsaPubUncompressed = secp.secp256k1.getPublicKey(privKey, false);
+      const pubHex: string = bytesToHex(ecdsaPubUncompressed);
+      const pubBytes = Buffer.from(pubHex.slice(2), "hex"); // skip 04 prefix
+      const hash = keccak_256(pubBytes);
+      const address = "0x" + nobleHex(hash).slice(-40);
+
+      return textResult({
+        privateKey: privKey,
+        address,
+        note: "You must authorize this address on Hyperliquid before proceeding.",
+      });
+    },
+  });
+
+  api.registerTool({
+    name: "store_wallet_in_tee",
+    description: "Store an agent wallet private key in the TEE-backed wallet agent (Step 1 of live trading setup)",
+    parameters: Type.Object({
+      ethAgentPrivateKey: Type.String({ description: "Agent wallet private key (hex, without 0x)" }),
+      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
+    }),
+    async execute(
+      _id: string,
+      params: { ethAgentPrivateKey: string; masterWalletAddress: string },
+    ) {
+      const { privateKey, publicKey, npub } = loadKeys(api.config);
+
+      const pubKeyRes = await fetch(`${walletAgentUrl}/pubkey`);
+      if (!pubKeyRes.ok) throw new Error(`Failed to get wallet-agent pubkey: ${pubKeyRes.status}`);
+      const { publicKey: walletAgentPubKey } = await pubKeyRes.json();
+
+      const ephemeralKey = Keys.generatePrivateKey();
+      const ephemeralPubKey = Keys.getPublicKey(ephemeralKey);
+      const encrypted = await Crypto.encryptSharedMessage(
+        ephemeralKey,
+        walletAgentPubKey,
+        params.ethAgentPrivateKey,
+      );
+      const encryptedPrivateKey = `${encrypted}&pbk=02${ephemeralPubKey}`;
+
+      const signedAt = Math.floor(Date.now() / 1000);
+      const body = {
+        npub,
+        public_key: walletAgentPubKey,
+        encrypted_private_key: encryptedPrivateKey,
+        signed_at: signedAt,
+      };
+      const signature = Signer.getSignature(body, privateKey, {
+        npub: "string",
+        public_key: "string",
+        encrypted_private_key: "string",
+        signed_at: "number",
+      } as const);
+
+      const res = await fetch(`${walletAgentUrl}/wallets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-public-key": publicKey,
+          "x-signature": signature,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      let agentWalletAddress: string;
+
+      if (res.ok) {
+        agentWalletAddress = data.eth_address ?? data.address;
+      } else if (data?.code === "WALLET_EXISTS") {
+        const match = data.error?.match(/(0x[0-9a-fA-F]{40})/);
+        if (match) {
+          agentWalletAddress = match[1];
+        } else {
+          const listRes = await fetch(`${walletAgentUrl}/wallets/${npub}`, {
+            headers: { "x-public-key": publicKey },
+          });
+          const listData = await listRes.json();
+          const wallets = listData.wallets || [];
+          agentWalletAddress = wallets[wallets.length - 1]?.eth_address;
+        }
+        if (!agentWalletAddress) throw new Error("No wallets found for this npub");
+      } else {
+        throw new Error(`store_wallet_in_tee failed: ${res.status} ${JSON.stringify(data)}`);
+      }
+
+      return textResult({ agentWalletAddress });
+    },
+  });
+
+  api.registerTool({
+    name: "register_wallet",
+    description: "Register an agent wallet in the backend (Step 2 of live trading setup)",
+    parameters: Type.Object({
+      agentWalletAddress: Type.String({ description: "Agent wallet address (0x...)" }),
+      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
+      network: Type.Optional(Type.String({ description: '"testnet" or "mainnet"', default: "testnet" })),
+    }),
+    async execute(
+      _id: string,
+      params: { agentWalletAddress: string; masterWalletAddress: string; network?: string },
+    ) {
+      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const createdAt = Math.floor(Date.now() / 1000);
+
+      const walletSig = Signer.getSignature(
+        {
+          created_at: createdAt,
+          wallet_address: params.agentWalletAddress,
+          action: "connected",
+          npub,
+        },
+        privateKey,
+        {
+          created_at: "number",
+          wallet_address: "string",
+          action: "string",
+          npub: "string",
+        } as const,
+      );
+
+      const res = await fetch(`${baseUrl}/api/wallets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: auth },
+        body: JSON.stringify({
+          npub,
+          name: `Wallet-${createdAt}`,
+          walletAddress: params.agentWalletAddress,
+          signature: walletSig,
+          createdAt,
+          walletType: "hyperliquid_agent",
+          masterWalletAddress: params.masterWalletAddress,
+          hyperliquidNetwork: params.network ?? "testnet",
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok && !data?.success) {
+        // May already exist — continue to resolve walletId
+      }
+
+      const walletsRes = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+        headers: { Authorization: auth },
+      });
+      const walletsData = await walletsRes.json();
+      const walletRecord = (walletsData.data || []).find(
+        (w: any) => w.wallet_address.toLowerCase() === params.agentWalletAddress.toLowerCase(),
+      );
+      if (!walletRecord) throw new Error("Wallet not found in backend after creation");
+
+      return textResult({ walletId: walletRecord.id, walletAddress: walletRecord.wallet_address });
+    },
+  });
+
+  api.registerTool({
+    name: "register_trader",
+    description: "Register a trader in the settlement engine (final step of live trading setup)",
+    parameters: Type.Object({
+      agentId: Type.Number({ description: "Agent ID" }),
+      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
+      agentWalletAddress: Type.String({ description: "Agent wallet address (0x...)" }),
+      symbol: Type.String({ description: 'Trading pair, e.g. "ETH/USDC"' }),
+      chainId: Type.Number({ description: "Chain ID (998=testnet)" }),
+      protocol: Type.Optional(Type.String({ description: "Protocol name", default: "hyperliquid" })),
+      buyLimitUsd: Type.Number({ description: "Buy limit in USD (initialCapital * leverage)" }),
+    }),
+    async execute(
+      _id: string,
+      params: {
+        agentId: number;
+        masterWalletAddress: string;
+        agentWalletAddress: string;
+        symbol: string;
+        chainId: number;
+        protocol?: string;
+        buyLimitUsd: number;
+      },
+    ) {
+      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const signedAt = Math.floor(Date.now() / 1000);
+
+      const body = {
+        trader_id: params.agentId,
+        owner: npub,
+        eth_address: params.masterWalletAddress,
+        agent_address: params.agentWalletAddress,
+        symbol: params.symbol,
+        chain_id: params.chainId,
+        protocol: params.protocol ?? "hyperliquid",
+        buy_limit_usd: params.buyLimitUsd,
+        execution_mode: "live",
+        signed_at: signedAt,
+      };
+      const signature = Signer.getSignature(body, privateKey, {
+        trader_id: "number",
+        eth_address: "string",
+        symbol: "string",
+        chain_id: "number",
+        signed_at: "number",
+      } as const);
+
+      const res = await fetch(`${settlementEngineUrl}/traders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-public-key": publicKey,
+          "x-signature": signature,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok)
+        throw new Error(`register_trader failed: ${res.status} ${await res.text()}`);
+      return textResult(await res.json());
+    },
+  });
+
   api.registerTool({
     name: "create_agent",
-    description: "Create a new paper trading agent",
+    description: "Create a new trading agent (paper or live)",
     parameters: Type.Object({
       name: Type.String({ description: "Agent name" }),
       initialCapital: Type.Number({ description: "Initial capital amount" }),
       poolId: Type.Number({ description: "Trading pool ID" }),
       mode: Type.Optional(
-        Type.String({ description: "Trading mode", default: "paper" }),
+        Type.String({ description: '"paper" or "live"', default: "paper" }),
       ),
       marketType: Type.Optional(
-        Type.String({ description: "Market type", default: "spot" }),
+        Type.String({ description: '"spot" or "perp"', default: "spot" }),
       ),
       strategy: Type.Optional(Strategy),
       simulationConfig: Type.Optional(SimulationConfig),
+      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (live mode)" })),
+      walletId: Type.Optional(Type.Number({ description: "Wallet ID from register_wallet (live mode)" })),
+      walletAddress: Type.Optional(Type.String({ description: "Agent wallet address (live mode)" })),
+      symbol: Type.Optional(Type.String({ description: 'Trading pair symbol, e.g. "ETH/USDC" (live mode)' })),
+      protocol: Type.Optional(Type.String({ description: '"hyperliquid" (live mode)', default: "hyperliquid" })),
+      chainId: Type.Optional(Type.Number({ description: "Chain ID (998=testnet, live mode)" })),
+      settlementConfig: Type.Optional(Type.Object({
+        eth_address: Type.String({ description: "Master wallet address" }),
+        agent_address: Type.String({ description: "Agent wallet address" }),
+      })),
     }),
     async execute(
       _id: string,
@@ -275,23 +525,46 @@ export default function (api: any) {
         marketType?: string;
         strategy?: Record<string, unknown>;
         simulationConfig?: { asset_type: string; protocol?: string };
+        leverage?: number;
+        walletId?: number;
+        walletAddress?: string;
+        symbol?: string;
+        protocol?: string;
+        chainId?: number;
+        settlementConfig?: { eth_address: string; agent_address: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(api.config);
       const auth = getAuthHeader(publicKey, privateKey);
+      const mode = params.mode ?? "paper";
 
       const payload: Record<string, unknown> = {
         name: params.name,
         initialCapital: params.initialCapital,
         poolId: params.poolId,
-        mode: params.mode ?? "paper",
+        mode,
         marketType: params.marketType ?? "spot",
         owner: npub,
         pubkey: publicKey,
-        chainId: 1,
+        chainId: mode === "live" ? (params.chainId ?? 998) : 1,
         simulationConfig: params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot"),
       };
       if (params.strategy) payload.strategy = params.strategy;
+
+      if (mode === "live") {
+        payload.isActive = true;
+        payload.marketType = "perp";
+        if (params.leverage) {
+          payload.leverage = params.leverage;
+          payload.buyLimit = params.initialCapital * params.leverage;
+        }
+        if (params.walletId) payload.walletId = params.walletId;
+        if (params.walletAddress) payload.walletAddress = params.walletAddress;
+        if (params.symbol) payload.symbol = params.symbol;
+        if (params.protocol) payload.protocol = params.protocol;
+        if (params.settlementConfig) payload.settlement_config = params.settlementConfig;
+      }
+
       const res = await fetch(`${baseUrl}/api/agent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: auth },
@@ -316,13 +589,16 @@ export default function (api: any) {
         description: 'Trading pair symbol, e.g. "BTC/USDC"',
       }),
       mode: Type.Optional(
-        Type.String({ description: "Trading mode", default: "paper" }),
+        Type.String({ description: '"paper" or "live"', default: "paper" }),
       ),
       marketType: Type.Optional(
-        Type.String({ description: "Market type", default: "spot" }),
+        Type.String({ description: '"spot" or "perp"', default: "spot" }),
       ),
       strategy: Type.Optional(Strategy),
       simulationConfig: Type.Optional(SimulationConfig),
+      description: Type.Optional(Type.String({ description: "Agent description" })),
+      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (live mode)" })),
+      settlementConfig: Type.Optional(Type.String({ description: "JSON-stringified settlement config (live mode)" })),
     }),
     async execute(
       _id: string,
@@ -335,12 +611,15 @@ export default function (api: any) {
         marketType?: string;
         strategy?: Record<string, unknown>;
         simulationConfig?: { asset_type: string; protocol?: string };
+        description?: string;
+        leverage?: number;
+        settlementConfig?: string;
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(api.config);
       const signedAt = Math.floor(Date.now() / 1000);
 
-      const body = {
+      const body: Record<string, unknown> = {
         id: params.agentId,
         name: params.name,
         owner: npub,
@@ -353,12 +632,15 @@ export default function (api: any) {
           rules: [],
           risk_manager: {},
         },
-        description: null,
+        description: params.description ?? null,
         mode: params.mode ?? "paper",
         signed_at: signedAt,
         market_type: params.marketType ?? "spot",
         simulation_config: params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot"),
       };
+      if (params.leverage != null) body.leverage = params.leverage;
+      if (params.settlementConfig != null) body.settlement_config = params.settlementConfig;
+
       const signature = Signer.getSignature(body, privateKey, {
         id: "number",
         name: "string",

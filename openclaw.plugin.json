@@ -16,6 +16,14 @@
       "nostrPrivateKey": {
         "type": "string",
         "default": "${NOSTR_PRIVATE_KEY}"
+      },
+      "walletAgentUrl": {
+        "type": "string",
+        "default": "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent"
+      },
+      "settlementEngineUrl": {
+        "type": "string",
+        "default": "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine"
       }
     }
   }

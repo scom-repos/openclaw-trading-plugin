@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "openclaw": {
-    "extensions": ["./src/tools.ts"]
+    "extensions": [
+      "./src/tools.ts"
+    ]
   },
   "dependencies": {
+    "@noble/hashes": "^2.0.1",
     "@scom/scom-signer": "^0.1.2"
   },
   "devDependencies": {
