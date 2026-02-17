@@ -394,34 +394,36 @@ export default function (api: any) {
         } as const,
       );
 
-      const res = await fetch(`${baseUrl}/api/wallets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth },
-        body: JSON.stringify({
-          npub,
-          name: `Wallet-${createdAt}`,
-          walletAddress: params.agentWalletAddress,
-          signature: walletSig,
-          createdAt,
-          walletType: "hyperliquid_agent",
-          masterWalletAddress: params.masterWalletAddress,
-          hyperliquidNetwork: params.network ?? "testnet",
-        }),
-      });
-      const data = await res.json();
-
-      if (!res.ok && !data?.success) {
-        // May already exist — continue to resolve walletId
+      // POST may 500 if wallet already exists — always fall through to GET lookup
+      try {
+        const res = await fetch(`${baseUrl}/api/wallets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: auth },
+          body: JSON.stringify({
+            npub,
+            name: `Wallet-${createdAt}`,
+            walletAddress: params.agentWalletAddress,
+            signature: walletSig,
+            createdAt,
+            walletType: "hyperliquid_agent",
+            masterWalletAddress: params.masterWalletAddress,
+            hyperliquidNetwork: params.network ?? "testnet",
+          }),
+        });
+        if (!res.ok) await res.text(); // drain body
+      } catch {
+        // Wallet may already exist — continue to lookup
       }
 
       const walletsRes = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
         headers: { Authorization: auth },
       });
+      if (!walletsRes.ok) throw new Error(`Failed to list wallets: ${walletsRes.status}`);
       const walletsData = await walletsRes.json();
       const walletRecord = (walletsData.data || []).find(
         (w: any) => w.wallet_address.toLowerCase() === params.agentWalletAddress.toLowerCase(),
       );
-      if (!walletRecord) throw new Error("Wallet not found in backend after creation");
+      if (!walletRecord) throw new Error("Wallet not found in backend after registration");
 
       return textResult({ walletId: walletRecord.id, walletAddress: walletRecord.wallet_address });
     },
