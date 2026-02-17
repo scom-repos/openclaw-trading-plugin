@@ -376,8 +376,26 @@ export default function (api: any) {
     ) {
       const { privateKey, publicKey, npub } = loadKeys(api.config);
       const auth = getAuthHeader(publicKey, privateKey);
-      const createdAt = Math.floor(Date.now() / 1000);
 
+      const findWallet = async () => {
+        const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+          headers: { Authorization: auth },
+        });
+        if (!res.ok) return undefined;
+        const data = await res.json();
+        return (data.data || []).find(
+          (w: any) => w.wallet_address.toLowerCase() === params.agentWalletAddress.toLowerCase(),
+        );
+      };
+
+      // Check if wallet already registered
+      const existing = await findWallet();
+      if (existing) {
+        return textResult({ walletId: existing.id, walletAddress: existing.wallet_address });
+      }
+
+      // Register new wallet
+      const createdAt = Math.floor(Date.now() / 1000);
       const walletSig = Signer.getSignature(
         {
           created_at: createdAt,
@@ -394,38 +412,32 @@ export default function (api: any) {
         } as const,
       );
 
-      // POST may 500 if wallet already exists — always fall through to GET lookup
-      try {
-        const res = await fetch(`${baseUrl}/api/wallets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: auth },
-          body: JSON.stringify({
-            npub,
-            name: `Wallet-${createdAt}`,
-            walletAddress: params.agentWalletAddress,
-            signature: walletSig,
-            createdAt,
-            walletType: "hyperliquid_agent",
-            masterWalletAddress: params.masterWalletAddress,
-            hyperliquidNetwork: params.network ?? "testnet",
-          }),
-        });
-        if (!res.ok) await res.text(); // drain body
-      } catch {
-        // Wallet may already exist — continue to lookup
+      const res = await fetch(`${baseUrl}/api/wallets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: auth },
+        body: JSON.stringify({
+          npub,
+          name: `Wallet-${createdAt}`,
+          walletAddress: params.agentWalletAddress,
+          signature: walletSig,
+          createdAt,
+          walletType: "hyperliquid_agent",
+          masterWalletAddress: params.masterWalletAddress,
+          hyperliquidNetwork: params.network ?? "testnet",
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        // Backend may 500 on duplicate — check if wallet exists now
+        const retry = await findWallet();
+        if (retry) return textResult({ walletId: retry.id, walletAddress: retry.wallet_address });
+        throw new Error(`register_wallet failed: ${res.status} ${text}`);
       }
 
-      const walletsRes = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
-        headers: { Authorization: auth },
-      });
-      if (!walletsRes.ok) throw new Error(`Failed to list wallets: ${walletsRes.status}`);
-      const walletsData = await walletsRes.json();
-      const walletRecord = (walletsData.data || []).find(
-        (w: any) => w.wallet_address.toLowerCase() === params.agentWalletAddress.toLowerCase(),
-      );
-      if (!walletRecord) throw new Error("Wallet not found in backend after registration");
-
-      return textResult({ walletId: walletRecord.id, walletAddress: walletRecord.wallet_address });
+      // POST succeeded but doesn't return walletId — look it up
+      const created = await findWallet();
+      if (!created) throw new Error("Wallet not found in backend after registration");
+      return textResult({ walletId: created.id, walletAddress: created.wallet_address });
     },
   });
 
