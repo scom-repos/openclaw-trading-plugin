@@ -10,10 +10,7 @@ Follow these steps to create a paper trading agent.
 ## Step 1 — Ensure Nostr keys exist
 Call `get_or_create_nostr_keys` with no arguments. Do not display the private key or nsec unless explicitly asked.
 
-## Step 2 — Choose a trading pair
-If the user specified a pair, skip this. Otherwise call `get_trading_pairs` and let the user choose. Note the `id` (poolId) and `symbol`.
-
-## Step 3 — Build the strategy
+## Step 2 — Build the strategy
 Ask the user what trading strategy they want. Construct a strategy object with:
 - **indicators**: technical indicators (EMA, RSI, MACD, Bollinger, etc.) with type, name, period, timeframe, and params
 - **rules**: entry (intent:"open") and exit (intent:"close") rules with conditions and order specs
@@ -38,17 +35,17 @@ If the user says something general like "EMA crossover", construct a reasonable 
 }
 ```
 
-## Step 4 — Confirm before creating
+## Step 3 — Confirm before creating
 Present a summary of what will be created: agent name, trading pair, initial capital, strategy name, indicators, entry/exit rules, and risk settings. Ask the user to confirm before proceeding. Do NOT call `create_agent` until the user explicitly confirms.
 
-## Step 5 — Create the agent
+## Step 4 — Create the agent
 Call `create_agent` with name, initialCapital, poolId, the strategy object, and `simulationConfig`. The `simulationConfig` is auto-inferred from marketType (spot defaults to `{"asset_type":"crypto","protocol":"uniswap"}`, perp to `{"asset_type":"crypto","protocol":"hyperliquid"}`). Only override if the user specifies stocks (`{"asset_type":"stocks"}`). Save the returned agentId.
 
-## Step 6 — Notify the trading bot
+## Step 5 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, the same strategy, and the same `simulationConfig`.
 
-## Step 7 — Log the creation
+## Step 6 — Log the creation
 Call `log_agent_action` with agentId and action "create".
 
-## Step 8 — Verify
+## Step 7 — Verify
 Call `get_agent` with agentId. Present a summary: agent ID, name, pair, capital, and strategy name.

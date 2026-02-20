@@ -244,17 +244,6 @@ export default function (api: any) {
     },
   });
 
-  api.registerTool({
-    name: "get_trading_pairs",
-    description: "Get available trading pairs",
-    parameters: Type.Object({}),
-    async execute() {
-      const res = await fetch(`${baseUrl}/api/trading-pairs`);
-      if (!res.ok) throw new Error(`trading-pairs failed: ${res.status}`);
-      return textResult(await res.json());
-    },
-  });
-
   // ── Live-trade tools ──────────────────────────────────────────
 
   api.registerTool({

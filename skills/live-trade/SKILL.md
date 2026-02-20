@@ -36,33 +36,30 @@ Save the returned `agentWalletAddress`.
 Call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
 Save the returned `walletId`.
 
-## Step 6 — Choose trading pair
-Ask the user which pair they want to trade. Always use `poolId: 1` (ETH/USDC) when calling `create_agent`.
-
-## Step 7 — Build the strategy
+## Step 6 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
 Reference `strategy-indicators`, `strategy-rules`, `strategy-risk`, `strategy-examples` skills.
 
-## Step 8 — Confirm before creating
+## Step 7 — Confirm before creating
 Present summary: agent name, pair, capital, leverage, strategy, master wallet, agent wallet.
 Ask for initial capital and leverage. Do NOT proceed until user confirms.
 
-## Step 9 — Create the agent (live mode)
+## Step 8 — Create the agent (live mode)
 Call `create_agent` with:
-- name, initialCapital, poolId, strategy
+- name, initialCapital, poolId: 1, strategy
 - mode: "live", marketType: "perp"
 - leverage, walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)
 - settlementConfig: { eth_address: masterWalletAddress, agent_address: agentWalletAddress }
 Save returned agentId.
 
-## Step 10 — Notify the trading bot
+## Step 9 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, strategy, mode "live", marketType "perp",
 leverage, and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd).
 
-## Step 11 — Register trader in settlement engine
+## Step 10 — Register trader in settlement engine
 Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
 
-## Step 12 — Log & verify
+## Step 11 — Log & verify
 Call `log_agent_action` with agentId and action "create".
 Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, leverage, wallet addresses.
