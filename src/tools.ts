@@ -509,7 +509,7 @@ export default function (api: any) {
     parameters: Type.Object({
       name: Type.String({ description: "Agent name" }),
       initialCapital: Type.Number({ description: "Initial capital amount" }),
-      poolId: Type.Optional(Type.Number({ description: "Trading pool ID (required for paper mode)" })),
+      poolId: Type.Number({ description: "Trading pool ID (1=ETH/USDC, 2=BTC/USDC, etc.)" }),
       mode: Type.Optional(
         Type.String({ description: '"paper" or "live"', default: "paper" }),
       ),
@@ -535,7 +535,7 @@ export default function (api: any) {
       params: {
         name: string;
         initialCapital: number;
-        poolId?: number;
+        poolId: number;
         mode?: string;
         marketType?: string;
         strategy?: Record<string, unknown>;
@@ -567,7 +567,7 @@ export default function (api: any) {
       if (mode === "paper") {
         payload.simulationConfig = params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot");
       }
-      if (params.poolId) payload.poolId = params.poolId;
+      payload.poolId = params.poolId;
       if (params.strategy) payload.strategy = params.strategy;
       if (params.strategyDescription) payload.strategyDescription = params.strategyDescription;
 

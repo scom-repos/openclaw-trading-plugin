@@ -37,7 +37,8 @@ Call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
 Save the returned `walletId`.
 
 ## Step 6 — Choose trading pair
-Ask the user which pair they want to trade (e.g. "ETH/USDC"). No need to call `get_trading_pairs` — the symbol is passed directly.
+Ask the user which pair they want to trade. Common pool IDs: 1=ETH/USDC, 2=BTC/USDC, 3=LINK/USDC, 15=SOL/USDC.
+If unsure, call `get_trading_pairs` to look up the pool ID.
 
 ## Step 7 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
@@ -49,7 +50,7 @@ Ask for initial capital and leverage. Do NOT proceed until user confirms.
 
 ## Step 9 — Create the agent (live mode)
 Call `create_agent` with:
-- name, initialCapital, strategy
+- name, initialCapital, poolId, strategy
 - mode: "live", marketType: "perp"
 - leverage, walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)
