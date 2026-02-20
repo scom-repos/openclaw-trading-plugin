@@ -37,8 +37,8 @@ Call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
 Save the returned `walletId`.
 
 ## Step 6 — Choose trading pair
-Ask the user which pair they want to trade. Common pool IDs: 1=ETH/USDC, 2=BTC/USDC, 3=LINK/USDC, 15=SOL/USDC.
-If unsure, call `get_trading_pairs` to look up the pool ID.
+Call `get_trading_pairs` to get the list of available pairs. Each pair has an `id` (this is the `poolId` needed for `create_agent`) and a `symbol`.
+If the user already specified a pair, find its `id` from the list. Otherwise let them choose.
 
 ## Step 7 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
