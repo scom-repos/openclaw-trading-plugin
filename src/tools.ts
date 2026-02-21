@@ -244,36 +244,48 @@ export default function (api: any) {
     },
   });
 
-  // ── Live-trade tools ──────────────────────────────────────────
-
   api.registerTool({
-    name: "generate_agent_wallet",
-    description: "Generate a new Ethereum keypair for use as a Hyperliquid agent wallet",
+    name: "check_trading_access",
+    description: "Check if the current user has trading access (is whitelisted)",
     parameters: Type.Object({}),
     async execute() {
-      // @ts-ignore - noble/hashes v2 exports require .js suffix
-      const { keccak_256 } = await import("@noble/hashes/sha3");
-      // @ts-ignore
-      const { bytesToHex: nobleHex } = await import("@noble/hashes/utils");
-      const crypto = await import("node:crypto");
-      // @ts-ignore - internal module
-      const secp = require("@scom/scom-signer/lib/curves/secp256k1");
-      const { bytesToHex } = require("@scom/scom-signer/lib/hashes/utils");
-
-      const privKey = crypto.randomBytes(32).toString("hex");
-      const ecdsaPubUncompressed = secp.secp256k1.getPublicKey(privKey, false);
-      const pubHex: string = bytesToHex(ecdsaPubUncompressed);
-      const pubBytes = Buffer.from(pubHex.slice(2), "hex"); // skip 04 prefix
-      const hash = keccak_256(pubBytes);
-      const address = "0x" + nobleHex(hash).slice(-40);
-
+      const { npub } = loadKeys(api.config);
+      const res = await fetch(`${baseUrl}/api/is-waitlisted/${npub}`);
+      if (!res.ok) throw new Error(`check_trading_access failed: ${res.status}`);
+      const data = await res.json();
       return textResult({
-        privateKey: privKey,
-        address,
-        note: "You must authorize this address on Hyperliquid before proceeding.",
+        npub,
+        hasAccess: data.isWaitlisted,
+        message: data.isWaitlisted
+          ? "You have trading access."
+          : "You do not have trading access. Use request_trading_access to request it.",
       });
     },
   });
+
+  api.registerTool({
+    name: "request_trading_access",
+    description: "Request trading access (waitlist). A whitelisted user or admin must approve at https://agent.openswap.xyz/admin/waitlist",
+    parameters: Type.Object({
+      walletAddress: Type.Optional(Type.String({ description: "Your wallet address (optional)" })),
+    }),
+    async execute(_id: string, params: { walletAddress?: string }) {
+      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const res = await fetch(`${baseUrl}/api/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: auth },
+        body: JSON.stringify({ npub, walletAddress: params.walletAddress }),
+      });
+      if (!res.ok) throw new Error(`request_trading_access failed: ${res.status} ${await res.text()}`);
+      return textResult({
+        success: true,
+        message: "Access requested. A whitelisted user or admin must approve at https://agent.openswap.xyz/admin/waitlist",
+      });
+    },
+  });
+
+  // ── Live-trade tools ──────────────────────────────────────────
 
   api.registerTool({
     name: "store_wallet_in_tee",
@@ -498,7 +510,6 @@ export default function (api: any) {
     parameters: Type.Object({
       name: Type.String({ description: "Agent name" }),
       initialCapital: Type.Number({ description: "Initial capital amount" }),
-      poolId: Type.Number({ description: "Trading pool ID (1=ETH/USDC, 2=BTC/USDC, etc.)" }),
       mode: Type.Optional(
         Type.String({ description: '"paper" or "live"', default: "paper" }),
       ),
@@ -524,7 +535,6 @@ export default function (api: any) {
       params: {
         name: string;
         initialCapital: number;
-        poolId: number;
         mode?: string;
         marketType?: string;
         strategy?: Record<string, unknown>;
@@ -556,7 +566,6 @@ export default function (api: any) {
       if (mode === "paper") {
         payload.simulationConfig = params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot");
       }
-      payload.poolId = params.poolId;
       if (params.strategy) payload.strategy = params.strategy;
       if (params.strategyDescription) payload.strategyDescription = params.strategyDescription;
 

@@ -13,20 +13,21 @@ The user needs:
 ## Step 1 — Ensure Nostr keys
 Call `get_or_create_nostr_keys`. Do not display the private key or nsec unless asked.
 
-## Step 2 — Generate or import agent wallet
-Ask if the user already has an agent wallet private key (ETH_AGENT_PRIVATE_KEY).
-- If no: call `generate_agent_wallet` to create one.
-- If yes: note their private key and proceed.
+## Step 2 — Check trading access
+Call `check_trading_access`. If the user does not have access, call `request_trading_access` with their wallet address (ask if needed). Tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. Do NOT proceed until they have access.
 
-## Step 3 — User authorizes agent wallet on Hyperliquid
-**This is a manual step.** Tell the user:
-1. Go to Hyperliquid (testnet: app.hyperliquid-testnet.xyz, mainnet: app.hyperliquid.xyz)
-2. Connect their master wallet
-3. Go to Settings > API / Agent Wallets > Authorize Agent
-4. Paste the agent wallet address
-5. Approve the transaction
-Ask the user to confirm they have authorized the agent wallet before proceeding.
-Also ask for their master wallet address (0x...).
+## Step 3 — User creates API wallet on Hyperliquid
+**This is a manual step.** Ask the user if they already have a Hyperliquid API wallet private key.
+- If yes: note their private key and proceed.
+- If no: guide them through these steps:
+  1. Go to Hyperliquid (testnet: app.hyperliquid-testnet.xyz, mainnet: app.hyperliquid.xyz)
+  2. Connect their master wallet
+  3. Click **More** > **API** (or visit the /API page)
+  4. Click **Create API Wallet**, enter a name, click **Generate**
+  5. **Copy the private key immediately** (shown only once)
+  6. Set validity to MAX (180 days), click **Authorize**, sign the message
+
+Ask the user to confirm they have the API wallet private key and their master wallet address (0x...).
 
 ## Step 4 — Store wallet in TEE
 Call `store_wallet_in_tee` with the agent wallet private key and master wallet address.
@@ -46,7 +47,7 @@ Ask for initial capital and leverage. Do NOT proceed until user confirms.
 
 ## Step 8 — Create the agent (live mode)
 Call `create_agent` with:
-- name, initialCapital, poolId: 1, strategy
+- name, initialCapital, strategy
 - mode: "live", marketType: "perp"
 - leverage, walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)

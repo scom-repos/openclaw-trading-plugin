@@ -41,6 +41,13 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
 | `get_token_prices` | Get live prices of all tokens     |
 | `get_ohlc`         | Get OHLC candle data for a symbol |
 
+### Access Control
+
+| Tool                       | Description                                          |
+| -------------------------- | ---------------------------------------------------- |
+| `check_trading_access`     | Check if the current user is whitelisted for trading |
+| `request_trading_access`   | Request trading access (requires admin approval)     |
+
 ### Trading
 
 | Tool                       | Description                                |
@@ -54,12 +61,11 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
 
 ### Live Trading (Hyperliquid)
 
-| Tool                    | Description                                      |
-| ----------------------- | ------------------------------------------------ |
-| `generate_agent_wallet` | Generate an Ethereum keypair for agent wallet     |
-| `store_wallet_in_tee`   | Store agent wallet private key in TEE wallet agent |
-| `register_wallet`       | Register agent wallet in the backend              |
-| `register_trader`       | Register trader in the settlement engine          |
+| Tool                  | Description                                        |
+| --------------------- | -------------------------------------------------- |
+| `store_wallet_in_tee` | Store agent wallet private key in TEE wallet agent |
+| `register_wallet`     | Register agent wallet in the backend               |
+| `register_trader`     | Register trader in the settlement engine           |
 
 ### Backtesting
 
