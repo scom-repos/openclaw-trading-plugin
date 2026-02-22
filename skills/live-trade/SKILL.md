@@ -16,7 +16,13 @@ Call `get_or_create_nostr_keys`. Do not display the private key or nsec unless a
 ## Step 2 — Check trading access
 Call `check_trading_access`. If the user does not have access, call `request_trading_access` with their wallet address (ask if needed). Tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. Do NOT proceed until they have access.
 
-## Step 3 — User creates API wallet on Hyperliquid
+## Step 3 — Check for existing wallets
+Call `list_wallets`. Filter the results to active wallets where `walletType` is `"hyperliquid_agent"`.
+
+- **If matching wallets found:** Present them to the user (show name, walletAddress, masterWalletAddress, network). Ask which one to reuse. Save the chosen `walletId`, `walletAddress`, and `masterWalletAddress`, then **skip to Step 7**.
+- **If no matching wallets:** Tell the user they need to set up a new wallet and continue to Step 4.
+
+## Step 4 — User creates API wallet on Hyperliquid
 **This is a manual step.** Ask the user if they already have a Hyperliquid API wallet private key.
 - If yes: note their private key and proceed.
 - If no: guide them through these steps:
@@ -29,23 +35,23 @@ Call `check_trading_access`. If the user does not have access, call `request_tra
 
 Ask the user to confirm they have the API wallet private key and their master wallet address (0x...).
 
-## Step 4 — Store wallet in TEE
+## Step 5 — Store wallet in TEE
 Call `store_wallet_in_tee` with the agent wallet private key and master wallet address.
 Save the returned `agentWalletAddress`.
 
-## Step 5 — Register wallet in backend
+## Step 6 — Register wallet in backend
 Call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
 Save the returned `walletId`.
 
-## Step 6 — Build the strategy
+## Step 7 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
 Reference `strategy-indicators`, `strategy-rules`, `strategy-risk`, `strategy-examples` skills.
 
-## Step 7 — Confirm before creating
+## Step 8 — Confirm before creating
 Present summary: agent name, pair, capital, leverage, strategy, master wallet, agent wallet.
 Ask for initial capital and leverage. Do NOT proceed until user confirms.
 
-## Step 8 — Create the agent (live mode)
+## Step 9 — Create the agent (live mode)
 Call `create_agent` with:
 - name, initialCapital, strategy
 - mode: "live", marketType: "perp"
@@ -54,13 +60,13 @@ Call `create_agent` with:
 - settlementConfig: { eth_address: masterWalletAddress, agent_address: agentWalletAddress }
 Save returned agentId.
 
-## Step 9 — Notify the trading bot
+## Step 10 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, strategy, mode "live", marketType "perp",
 leverage, and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd).
 
-## Step 10 — Register trader in settlement engine
+## Step 11 — Register trader in settlement engine
 Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
 
-## Step 11 — Log & verify
+## Step 12 — Log & verify
 Call `log_agent_action` with agentId and action "create".
 Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, leverage, wallet addresses.

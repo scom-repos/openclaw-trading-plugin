@@ -285,6 +285,31 @@ export default function (api: any) {
     },
   });
 
+  api.registerTool({
+    name: "list_wallets",
+    description: "List all wallets registered for the current user",
+    parameters: Type.Object({}),
+    async execute() {
+      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+        headers: { Authorization: auth },
+      });
+      if (!res.ok) throw new Error(`list_wallets failed: ${res.status}`);
+      const data = await res.json();
+      const wallets = (data.data || []).map((w: any) => ({
+        walletId: w.id,
+        name: w.name,
+        walletAddress: w.wallet_address,
+        masterWalletAddress: w.master_wallet_address,
+        walletType: w.wallet_type,
+        network: w.hyperliquid_network,
+        isActive: w.is_active,
+      }));
+      return textResult({ npub, wallets });
+    },
+  });
+
   // ── Live-trade tools ──────────────────────────────────────────
 
   api.registerTool({
