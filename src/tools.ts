@@ -104,12 +104,9 @@ function loadKeys(config: any): {
   publicKey: string;
   npub: string;
 } {
-  // Prefer explicit plugin config, but fall back to env for convenience.
-  const pk =
-    (config?.nostrPrivateKey && config.nostrPrivateKey !== "${NOSTR_PRIVATE_KEY}"
-      ? config.nostrPrivateKey
-      : undefined) ??
-    process.env.NOSTR_PRIVATE_KEY;
+  const pk = config?.nostrPrivateKey && config.nostrPrivateKey !== "${NOSTR_PRIVATE_KEY}"
+    ? config.nostrPrivateKey
+    : undefined;
 
   if (!pk)
     throw new Error(
@@ -129,16 +126,20 @@ function getAuthHeader(pubkey: string, privateKey: string): string {
   return `Bearer ${pubkey}:${sig}`;
 }
 
-function persistKeyToEnv(privateKey: string): boolean {
-  const envPath = path.join(os.homedir(), ".openclaw", ".env");
-  let content = "";
+function persistKeyToConfig(privateKey: string): boolean {
+  const cfgPath = path.join(os.homedir(), "openclaw", "openclaw.json");
+  let cfg: any = {};
   try {
-    content = fs.readFileSync(envPath, "utf-8");
+    cfg = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
   } catch {}
-  if (content.includes("NOSTR_PRIVATE_KEY=")) return false;
-  fs.mkdirSync(path.dirname(envPath), { recursive: true });
-  const sep = content.length && !content.endsWith("\n") ? "\n" : "";
-  fs.appendFileSync(envPath, `${sep}NOSTR_PRIVATE_KEY=${privateKey}\n`);
+
+  const entry = ((cfg.plugins ??= {}).entries ??= {})["trading-plugin"] ??= {};
+  const config = (entry.config ??= {});
+  if (config.nostrPrivateKey) return false;
+
+  config.nostrPrivateKey = privateKey;
+  fs.mkdirSync(path.dirname(cfgPath), { recursive: true });
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n");
   return true;
 }
 
@@ -240,7 +241,7 @@ export default function (api: any) {
       }
 
       pk = params.privateKey ?? Keys.generatePrivateKey();
-      const persisted = persistKeyToEnv(pk);
+      const persisted = persistKeyToConfig(pk);
       const publicKey = Keys.getPublicKey(pk);
       return textResult({
         exists: true,
