@@ -7,7 +7,7 @@ description: Retrieve the user's Nostr npub. Use when the user asks for their np
 
 Call `get_nostr_identity` to retrieve the user's npub and public key. This is read-only and has no side effects.
 
-The npub is derived from the private key stored in `~/openclaw/openclaw.json`.
+The npub is derived from the private key stored in `~/.openclaw/openclaw.json`.
 
 Whenever you need the user's npub as input to another tool or function call, use `get_nostr_identity` to obtain it rather than calling `get_or_create_nostr_keys`.
 

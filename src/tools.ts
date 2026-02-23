@@ -127,7 +127,7 @@ function getAuthHeader(pubkey: string, privateKey: string): string {
 }
 
 function persistKeyToConfig(privateKey: string): boolean {
-  const cfgPath = path.join(os.homedir(), "openclaw", "openclaw.json");
+  const cfgPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
   let cfg: any = {};
   try {
     cfg = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
