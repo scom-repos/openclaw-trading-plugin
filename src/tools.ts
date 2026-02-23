@@ -215,14 +215,18 @@ export default function (api: any) {
       privateKey: Type.Optional(
         Type.String({ description: "Existing hex private key to import" }),
       ),
+      checkOnly: Type.Optional(
+        Type.Boolean({ description: "When true, only check if a key exists without generating one" }),
+      ),
     }),
-    async execute(_id: string, params: { privateKey?: string }) {
+    async execute(_id: string, params: { privateKey?: string; checkOnly?: boolean }) {
       let pk = api.config?.nostrPrivateKey;
       const fromConfig = pk && pk !== "${NOSTR_PRIVATE_KEY}";
 
       if (fromConfig) {
         const publicKey = Keys.getPublicKey(pk);
         return textResult({
+          exists: true,
           privateKey: pk,
           publicKey,
           nsec: Nip19.nsecEncode(pk),
@@ -231,10 +235,15 @@ export default function (api: any) {
         });
       }
 
+      if (params.checkOnly) {
+        return textResult({ exists: false });
+      }
+
       pk = params.privateKey ?? Keys.generatePrivateKey();
       const persisted = persistKeyToEnv(pk);
       const publicKey = Keys.getPublicKey(pk);
       return textResult({
+        exists: true,
         privateKey: pk,
         publicKey,
         nsec: Nip19.nsecEncode(pk),

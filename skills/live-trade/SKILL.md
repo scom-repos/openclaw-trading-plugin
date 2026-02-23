@@ -11,7 +11,9 @@ The user needs:
 - Funds deposited on Hyperliquid (testnet or mainnet)
 
 ## Step 1 — Ensure Nostr keys
-Call `get_or_create_nostr_keys`. Do not display the private key or nsec unless asked.
+Call `get_or_create_nostr_keys` with `checkOnly: true`.
+- **If `exists: true`:** Key is already set up. Proceed silently to Step 2.
+- **If `exists: false`:** Ask the user if they want to generate a new Nostr identity. If they confirm, call `get_or_create_nostr_keys` (without `checkOnly`). Tell them a new identity was generated and saved to `~/.openclaw/.env`. Do not display the npub or nsec unless the user asks.
 
 ## Step 2 — Check trading access
 Call `check_trading_access`. If the user does not have access, call `request_trading_access` with their wallet address (ask if needed). Tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. Do NOT proceed until they have access.
