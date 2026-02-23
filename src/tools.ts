@@ -255,6 +255,20 @@ export default function (api: any) {
   });
 
   api.registerTool({
+    name: "get_nostr_identity",
+    description: "Get the user's Nostr npub and public key (read-only, no side effects)",
+    parameters: Type.Object({}),
+    async execute() {
+      const pk = api.config?.nostrPrivateKey;
+      if (!pk || pk === "${NOSTR_PRIVATE_KEY}") {
+        return textResult({ exists: false });
+      }
+      const publicKey = Keys.getPublicKey(pk);
+      return textResult({ npub: Nip19.npubEncode(publicKey), publicKey });
+    },
+  });
+
+  api.registerTool({
     name: "check_trading_access",
     description: "Check if the current user has trading access (is whitelisted)",
     parameters: Type.Object({}),
