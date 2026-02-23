@@ -23,22 +23,10 @@ openclaw plugins install -l .
 
 ## 3. Configure the Plugin
 
-Edit `~/openclaw/openclaw.json` and add the plugin config (replace the ${NOSTR_PRIVATE_KEY} with your Nostr private key):
+Edit `~/openclaw/.env` and add the plugin config with your Nostr private key:
 
 ```json
-{
-  "plugins": {
-    "entries": {
-      "trading-plugin": {
-        "config": {
-          "baseUrl": "https://agent02.decom.dev",
-          "tradingBotUrl": "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network",
-          "nostrPrivateKey": "${NOSTR_PRIVATE_KEY}"
-        }
-      }
-    }
-  }
-}
+
 ```
 
 ## 4. Start the Gateway
