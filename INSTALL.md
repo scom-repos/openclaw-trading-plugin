@@ -23,7 +23,7 @@ openclaw plugins install -l .
 
 ## 3. Configure the Plugin
 
-Edit `~/openclaw/openclaw.json` and add the plugin config (replace the ${NOSTR_PRIVATE_KEY} with your Nostr private key):
+Edit `~/.openclaw/openclaw.json` and add the plugin config (replace the placeholder with your Nostr private key):
 
 ```json
 {

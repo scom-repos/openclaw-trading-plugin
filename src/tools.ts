@@ -104,9 +104,7 @@ function loadKeys(config: any): {
   publicKey: string;
   npub: string;
 } {
-  const pk = config?.nostrPrivateKey && config.nostrPrivateKey !== "${NOSTR_PRIVATE_KEY}"
-    ? config.nostrPrivateKey
-    : undefined;
+  const pk = config?.nostrPrivateKey || undefined;
 
   if (!pk)
     throw new Error(
@@ -222,7 +220,7 @@ export default function (api: any) {
     }),
     async execute(_id: string, params: { privateKey?: string; checkOnly?: boolean }) {
       let pk = api.config?.nostrPrivateKey;
-      const fromConfig = pk && pk !== "${NOSTR_PRIVATE_KEY}";
+      const fromConfig = !!pk;
 
       if (fromConfig) {
         const publicKey = Keys.getPublicKey(pk);
@@ -260,7 +258,7 @@ export default function (api: any) {
     parameters: Type.Object({}),
     async execute() {
       const pk = api.config?.nostrPrivateKey;
-      if (!pk || pk === "${NOSTR_PRIVATE_KEY}") {
+      if (!pk) {
         return textResult({ exists: false });
       }
       const publicKey = Keys.getPublicKey(pk);
