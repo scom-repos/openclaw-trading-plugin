@@ -1,153 +1,214 @@
 ---
 name: strategy-examples
-description: Complete strategy JSON examples covering common patterns. Use as templates when building trading strategies.
+description: Strategy config structure and canonical examples copied from the official Trading Bot API doc. Use as the primary reference when building strategy_config JSON for agent creation or updates.
 ---
 
-# Strategy Examples
+# Strategy Config Reference
 
-## 1. Simple RSI Strategy
+## Strategy Config Structure
 
-Buy when RSI oversold, sell when overbought, with percent-based risk management.
+The `strategy_config` object is a required field when creating or updating a trading agent. It defines the trading strategy the agent will execute.
+
+**Top-level fields:**
+- `name` (string, required): Strategy name identifier
+- `symbol` (string, required): Trading pair, e.g. `"ETH/USDC"` or stock symbol like `"AAPL"`
+- `indicators` (array, required): Technical indicators used by the strategy. See `strategy-indicators` skill for all types.
+- `rules` (array, required): Entry/exit rules with conditions and orders. See `strategy-rules` skill for all condition types.
+- `risk_manager` (object, optional): Stop loss, take profit, trailing stop, cooldown, per-bar limits. See `strategy-risk` skill for all options.
+
+## 1. Spot Paper Trading (Crypto with Uniswap)
+
+RSI-based momentum strategy for spot paper trading. Uses `simulation_config` with `asset_type: "crypto"` and `protocol: "uniswap"`.
 
 ```json
 {
-  "name": "simple_rsi_strategy",
+  "name": "momentum_rsi",
   "symbol": "ETH/USDC",
   "indicators": [
-    {"type":"rsi","name":"rsi14","period":14,"timeframe":"M1"}
+    {
+      "type": "rsi",
+      "name": "rsi14",
+      "period": 14,
+      "timeframe": "M1"
+    }
   ],
   "rules": [
     {
       "id": "buy_oversold",
       "intent": "open",
-      "when": {"indicator":"rsi14","op":"lt","value":30},
-      "order": {"type":"market","size":{"mode":"all"}}
-    },
-    {
-      "id": "sell_overbought",
-      "intent": "close",
-      "when": {"indicator":"rsi14","op":"gt","value":70},
-      "order": {"type":"market","size":{"mode":"all"}}
+      "when": {
+        "indicator": "rsi14",
+        "op": "lt",
+        "value": 30
+      },
+      "order": {
+        "type": "market",
+        "size": { "mode": "percent", "value": 50 }
+      }
     }
   ],
   "risk_manager": {
-    "stop_loss": {"enabled":true,"mode":"percent","value":5.0},
-    "take_profit": {"enabled":true,"mode":"percent","value":10.0}
+    "stop_loss": { "enabled": true, "mode": "percent", "value": 5.0 }
   }
 }
 ```
 
-## 2. EMA Crossover with ATR Risk
+## 2. Perp Live Trading (with Leverage)
 
-Trend following using EMA golden/death cross with ATR-based stops and trailing.
+RSI-based perp strategy for live trading on Hyperliquid. Paired with `leverage`, `settlement_config`, and `simulation_config` with `protocol: "hyperliquid"`.
 
 ```json
 {
-  "name": "trend_following_atr",
+  "name": "momentum_rsi",
   "symbol": "ETH/USDC",
   "indicators": [
-    {"type":"ema","name":"ema20","period":20,"timeframe":"M1"},
-    {"type":"ema","name":"ema50","period":50,"timeframe":"M1"},
-    {"type":"atr","name":"atr14","timeframe":"M1","params":{"period":14}}
-  ],
-  "rules": [
     {
-      "id": "golden_cross",
-      "intent": "open",
-      "when": {"indicator":"ema20","op":"crosses_above","other":"ema50"},
-      "order": {"type":"market","size":{"mode":"percent","value":100}}
-    },
-    {
-      "id": "death_cross",
-      "intent": "close",
-      "when": {"indicator":"ema20","op":"crosses_below","other":"ema50"},
-      "order": {"type":"market","size":{"mode":"all"}}
+      "type": "rsi",
+      "name": "rsi14",
+      "period": 14,
+      "timeframe": "M1"
     }
   ],
-  "risk_manager": {
-    "stop_loss": {"enabled":true,"mode":"atr","value":1.5,"atr_indicator":"atr14"},
-    "take_profit": {"enabled":true,"mode":"atr","value":2.5,"atr_indicator":"atr14"},
-    "trailing_stop": {"enabled":true,"start_mode":"atr","start_value":1.0,"distance_mode":"breakeven","distance_value":0.0,"atr_indicator":"atr14"}
-  }
-}
-```
-
-## 3. MACD Crossover with Compound Conditions
-
-Enter on bullish MACD cross + positive histogram, exit on bearish cross.
-
-```json
-{
-  "name": "macd_crossover_strategy",
-  "symbol": "ETH/USDC",
-  "indicators": [
-    {"type":"macd","name":"macd","timeframe":"M1","params":{"fast_period":12,"slow_period":26,"signal_period":9}}
-  ],
   "rules": [
     {
-      "id": "bullish_cross",
+      "id": "buy_oversold",
       "intent": "open",
       "when": {
-        "all": [
-          {"indicator":"macd.macd","op":"crosses_above","other":"macd.signal"},
-          {"indicator":"macd.histogram","op":"gt","value":0}
-        ]
+        "indicator": "rsi14",
+        "op": "lt",
+        "value": 30
       },
-      "order": {"type":"market","size":{"mode":"all"}}
-    },
-    {
-      "id": "bearish_cross",
-      "intent": "close",
-      "when": {
-        "all": [
-          {"indicator":"macd.macd","op":"crosses_below","other":"macd.signal"},
-          {"indicator":"macd.histogram","op":"lt","value":0}
-        ]
-      },
-      "order": {"type":"market","size":{"mode":"all"}}
+      "order": {
+        "type": "market",
+        "size": { "mode": "percent", "value": 50 }
+      }
     }
   ]
 }
 ```
 
-## 4. Bollinger + StochRSI with Per-Bar Limits
+## 3. Stocks Simulation (Paper Mode)
 
-Mean reversion: buy at lower band + oversold StochRSI, sell at upper band + overbought.
+Stock trading with RSI strategy. Uses `simulation_config` with `asset_type: "stocks"` (no `protocol` field needed).
 
 ```json
 {
-  "name": "bollinger_breakout",
-  "symbol": "ETH/USDC",
+  "name": "stock_momentum",
+  "symbol": "AAPL",
   "indicators": [
-    {"type":"bollinger","name":"bb","timeframe":"M1","params":{"period":20,"std_dev":2.0}},
-    {"type":"stochrsi","name":"stochrsi","timeframe":"M1","params":{"rsi_period":14,"stoch_period":14,"k_period":3,"d_period":3}}
+    {
+      "type": "rsi",
+      "name": "rsi14",
+      "period": 14,
+      "timeframe": "M1"
+    }
   ],
   "rules": [
     {
-      "id": "bb_lower_bounce",
+      "id": "buy_oversold",
+      "intent": "open",
+      "when": {
+        "indicator": "rsi14",
+        "op": "lt",
+        "value": 30
+      },
+      "order": {
+        "type": "market",
+        "size": { "mode": "percent", "value": 50 }
+      }
+    }
+  ]
+}
+```
+
+## 4. Strategy Update (MACD Crossover)
+
+MACD crossover with compound conditions, used when updating an existing agent's strategy via PUT endpoint.
+
+```json
+{
+  "name": "macd_update",
+  "symbol": "ETH/USDC",
+  "indicators": [
+    { "type": "macd", "name": "macd", "timeframe": "M1", "params": { "fast_period": 12, "slow_period": 26, "signal_period": 9 } }
+  ],
+  "rules": [
+    {
+      "id": "macd_open",
       "intent": "open",
       "when": {
         "all": [
-          {"indicator":"price","op":"lt","other":"bb.lower"},
-          {"indicator":"stochrsi_k","op":"lt","value":20}
+          { "indicator": "macd.macd", "op": "crosses_above", "other": "macd.signal" },
+          { "indicator": "macd.histogram", "op": "gt", "value": 0 }
         ]
       },
-      "order": {"type":"market","size":{"mode":"all"}}
-    },
-    {
-      "id": "bb_upper_sell",
-      "intent": "close",
-      "when": {
-        "all": [
-          {"indicator":"price","op":"gt","other":"bb.upper"},
-          {"indicator":"stochrsi_k","op":"gt","value":80}
-        ]
-      },
-      "order": {"type":"market","size":{"mode":"all"}}
+      "order": { "type": "market", "size": { "mode": "percent", "value": 100 } }
     }
-  ],
-  "risk_manager": {
-    "per_bar_limits": [{"timeframe":"M1","max_trades":1}]
-  }
+  ]
 }
 ```
+
+## 5. Updated RSI Strategy (Adjusted Thresholds)
+
+Example of a strategy_config sent via PUT to update an existing agent with modified thresholds and size.
+
+```json
+{
+  "name": "updated_rsi",
+  "symbol": "ETH/USDC",
+  "indicators": [
+    { "type": "rsi", "name": "rsi14", "period": 14, "timeframe": "M1" }
+  ],
+  "rules": [
+    {
+      "id": "buy_oversold",
+      "intent": "open",
+      "when": { "indicator": "rsi14", "op": "lt", "value": 25 },
+      "order": { "type": "market", "size": { "mode": "percent", "value": 75 } }
+    }
+  ]
+}
+```
+
+## Simulation Config
+
+Required for `mode="paper"` to specify the simulation type.
+
+**Crypto with Uniswap** (default for `market_type="spot"`):
+```json
+{
+  "asset_type": "crypto",
+  "protocol": "uniswap"
+}
+```
+
+**Crypto with Hyperliquid** (default for `market_type="perp"`):
+```json
+{
+  "asset_type": "crypto",
+  "protocol": "hyperliquid"
+}
+```
+
+**Stocks** (executes immediately without indexer):
+```json
+{
+  "asset_type": "stocks"
+}
+```
+
+## Settlement Config (Hyperliquid)
+
+Required when `mode="live"` for actual trading with settlement integration. Not needed for `mode="paper"`.
+
+```json
+{
+  "eth_address": "0x1234567890123456789012345678901234567890",
+  "symbol": "ETH/USDC",
+  "chain_id": 998,
+  "protocol": "hyperliquid",
+  "buy_limit_usd": 10000.0
+}
+```
+
+- `chain_id`: 998 for testnet, 999 for mainnet
