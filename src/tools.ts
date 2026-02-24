@@ -666,6 +666,7 @@ export default function (api: any) {
       description: Type.Optional(Type.String({ description: "Agent description" })),
       leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (live mode)" })),
       settlementConfig: Type.Optional(Type.String({ description: "JSON-stringified settlement config (live mode)" })),
+      simulationConfig: Type.Optional(SimulationConfig),
     }),
     async execute(
       _id: string,
@@ -680,6 +681,7 @@ export default function (api: any) {
         description?: string;
         leverage?: number;
         settlementConfig?: string;
+        simulationConfig?: { asset_type: string; protocol?: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
@@ -705,6 +707,10 @@ export default function (api: any) {
       };
       if (params.leverage != null) body.leverage = params.leverage;
       if (params.settlementConfig != null) body.settlement_config = params.settlementConfig;
+      const mode = params.mode ?? "paper";
+      if (mode === "paper") {
+        body.simulation_config = params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot");
+      }
 
       const signature = Signer.getSignature(body, privateKey, {
         id: "number",
