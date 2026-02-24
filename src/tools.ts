@@ -146,11 +146,12 @@ function textResult(data: unknown) {
 }
 
 export default function (api: any) {
-  const baseUrl: string = api.config?.baseUrl ?? DEFAULT_BASE_URL;
-  const tradingBotUrl: string = api.config?.tradingBotUrl ?? DEFAULT_BOT_URL;
-  const backtestEngineUrl: string = api.config?.backtestEngineUrl ?? DEFAULT_BACKTEST_ENGINE_URL;
-  const walletAgentUrl: string = api.config?.walletAgentUrl ?? DEFAULT_WALLET_AGENT_URL;
-  const settlementEngineUrl: string = api.config?.settlementEngineUrl ?? DEFAULT_SETTLEMENT_ENGINE_URL;
+  const pluginConfig = api.config?.plugins?.entries?.["trading-plugin"]?.config ?? api.config ?? {};
+  const baseUrl: string = pluginConfig.baseUrl ?? DEFAULT_BASE_URL;
+  const tradingBotUrl: string = pluginConfig.tradingBotUrl ?? DEFAULT_BOT_URL;
+  const backtestEngineUrl: string = pluginConfig.backtestEngineUrl ?? DEFAULT_BACKTEST_ENGINE_URL;
+  const walletAgentUrl: string = pluginConfig.walletAgentUrl ?? DEFAULT_WALLET_AGENT_URL;
+  const settlementEngineUrl: string = pluginConfig.settlementEngineUrl ?? DEFAULT_SETTLEMENT_ENGINE_URL;
 
   // ── Existing tools ──────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ export default function (api: any) {
       ),
     }),
     async execute(_id: string, params: { privateKey?: string; checkOnly?: boolean }) {
-      let pk = api.config?.nostrPrivateKey;
+      let pk = pluginConfig.nostrPrivateKey;
       const fromConfig = !!pk;
 
       if (fromConfig) {
@@ -257,7 +258,7 @@ export default function (api: any) {
     description: "Get the user's Nostr npub and public key (read-only, no side effects)",
     parameters: Type.Object({}),
     async execute() {
-      const pk = api.config?.nostrPrivateKey;
+      const pk = pluginConfig.nostrPrivateKey;
       if (!pk) {
         return textResult({ exists: false });
       }
@@ -271,7 +272,7 @@ export default function (api: any) {
     description: "Check if the current user has trading access (is whitelisted)",
     parameters: Type.Object({}),
     async execute() {
-      const { npub } = loadKeys(api.config);
+      const { npub } = loadKeys(pluginConfig);
       const res = await fetch(`${baseUrl}/api/is-waitlisted/${npub}`);
       if (!res.ok) throw new Error(`check_trading_access failed: ${res.status}`);
       const data = await res.json();
@@ -292,7 +293,7 @@ export default function (api: any) {
       walletAddress: Type.Optional(Type.String({ description: "Your wallet address (optional)" })),
     }),
     async execute(_id: string, params: { walletAddress?: string }) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
       const res = await fetch(`${baseUrl}/api/waitlist`, {
         method: "POST",
@@ -312,7 +313,7 @@ export default function (api: any) {
     description: "List all wallets registered for the current user",
     parameters: Type.Object({}),
     async execute() {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
       const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
         headers: { Authorization: auth },
@@ -345,7 +346,7 @@ export default function (api: any) {
       _id: string,
       params: { ethAgentPrivateKey: string; masterWalletAddress: string },
     ) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
 
       const pubKeyRes = await fetch(`${walletAgentUrl}/pubkey`);
       if (!pubKeyRes.ok) throw new Error(`Failed to get wallet-agent pubkey: ${pubKeyRes.status}`);
@@ -422,7 +423,7 @@ export default function (api: any) {
       _id: string,
       params: { agentWalletAddress: string; masterWalletAddress: string; network?: string },
     ) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
 
       const findWallet = async () => {
@@ -513,7 +514,7 @@ export default function (api: any) {
         buyLimitUsd: number;
       },
     ) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const signedAt = Math.floor(Date.now() / 1000);
 
       const body = {
@@ -596,7 +597,7 @@ export default function (api: any) {
         settlementConfig?: { eth_address: string; agent_address: string };
       },
     ) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
       const mode = params.mode ?? "paper";
 
@@ -679,7 +680,7 @@ export default function (api: any) {
         settlementConfig?: string;
       },
     ) {
-      const { privateKey, publicKey, npub } = loadKeys(api.config);
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const signedAt = Math.floor(Date.now() / 1000);
 
       const body: Record<string, unknown> = {
@@ -738,7 +739,7 @@ export default function (api: any) {
       _id: string,
       params: { agentId: number; action: string },
     ) {
-      const { privateKey, publicKey } = loadKeys(api.config);
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
       const timestamp = Math.floor(Date.now() / 1000);
 
       const sigData = {
@@ -815,7 +816,7 @@ export default function (api: any) {
         strategy?: Record<string, unknown>;
       },
     ) {
-      const { privateKey, publicKey } = loadKeys(api.config);
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
 
       const payload: Record<string, unknown> = {
@@ -846,7 +847,7 @@ export default function (api: any) {
       agentId: Type.Number({ description: "Agent ID" }),
     }),
     async execute(_id: string, params: { agentId: number }) {
-      const { privateKey, publicKey } = loadKeys(api.config);
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
 
       const res = await fetch(`${baseUrl}/api/backtests/${params.agentId}`, {
