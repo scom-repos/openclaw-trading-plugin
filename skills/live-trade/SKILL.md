@@ -75,4 +75,4 @@ Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, sy
 
 ## Step 12 — Log & verify
 Call `log_agent_action` with agentId and action "create".
-Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, leverage, wallet addresses. Include the agent URL from the `create_agent` response (`agentUrl`), or construct it as `https://agent.openswap.xyz/trading-agents/{publicKey}/{agentId}`.
+Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, leverage, wallet addresses. Include the agent URL from the `create_agent` response (`agentUrl`).
