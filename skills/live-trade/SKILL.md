@@ -5,28 +5,32 @@ description: Create a live trading agent on Hyperliquid. Use when the user wants
 
 # Live Trading Agent Creation (Hyperliquid)
 
+IMPORTANT: You MUST follow these steps in exact order. At each step, call the specified tool FIRST before saying anything to the user. Do NOT skip tool calls. Do NOT ask the user questions that a tool call can answer. Do NOT combine or reorder steps.
+
 ## Prerequisites
 The user needs:
 - A master wallet (MetaMask etc.) connected to Hyperliquid
 - Funds deposited on Hyperliquid (testnet or mainnet)
 
 ## Step 1 — Ensure Nostr keys
-Call `get_or_create_nostr_keys` with `checkOnly: true`.
-- **If `exists: true`:** Key is already set up. Proceed silently to Step 2.
-- **If `exists: false`:** Ask the user if they want to generate a new Nostr identity. If they confirm, call `get_or_create_nostr_keys` (without `checkOnly`). Tell them a new identity was generated and saved to `~/openclaw/openclaw.json`. Do not display the npub or nsec unless the user asks.
+IMMEDIATELY call `get_or_create_nostr_keys` with `checkOnly: true`. Do NOT ask the user about keys first.
+- **If `exists: true`:** Proceed silently to Step 2. Do NOT mention the key to the user.
+- **If `exists: false`:** Ask the user if they want to generate a new Nostr identity. If they confirm, call `get_or_create_nostr_keys` (without `checkOnly`). Tell them a new identity was generated and saved. Do not display the npub or nsec unless the user asks.
 
 ## Step 2 — Check trading access
-Call `check_trading_access`. If the user does not have access, call `request_trading_access` with their wallet address (ask if needed). Tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. Do NOT proceed until they have access.
+IMMEDIATELY call `check_trading_access`. Do NOT ask the user about access first.
+- **If `hasAccess: true`:** Proceed silently to Step 3. Do NOT ask for a wallet address. Do NOT call `request_trading_access`.
+- **If `hasAccess: false`:** Ask for their wallet address, then call `request_trading_access`. Tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. STOP here — do NOT proceed until they confirm access is approved.
 
 ## Step 3 — Check for existing wallets
-Call `list_wallets`. Filter the results to active wallets where `walletType` is `"hyperliquid_agent"`.
+IMMEDIATELY call `list_wallets`. Do NOT ask the user about wallets first. Filter the results to active wallets where `walletType` is `"hyperliquid_agent"`.
 
 - **If matching wallets found:** Present them to the user (show name, walletAddress, masterWalletAddress, network). Ask which one to reuse. Save the chosen `walletId`, `walletAddress`, and `masterWalletAddress`, then **skip to Step 7**.
 - **If no matching wallets:** Tell the user they need to set up a new wallet and continue to Step 4.
 
 ## Step 4 — User creates API wallet on Hyperliquid
 **This is a manual step.** Ask the user if they already have a Hyperliquid API wallet private key.
-- If yes: note their private key and proceed.
+- If yes: ask them for the private key and their master wallet address (0x...), then proceed to Step 5.
 - If no: guide them through these steps:
   1. Go to Hyperliquid (testnet: app.hyperliquid-testnet.xyz, mainnet: app.hyperliquid.xyz)
   2. Connect their master wallet
@@ -35,14 +39,14 @@ Call `list_wallets`. Filter the results to active wallets where `walletType` is 
   5. **Copy the private key immediately** (shown only once)
   6. Set validity to MAX (180 days), click **Authorize**, sign the message
 
-Ask the user to confirm they have the API wallet private key and their master wallet address (0x...).
+Then ask the user to provide: (1) the API wallet private key, (2) their master wallet address (0x...).
 
 ## Step 5 — Store wallet in TEE
-Call `store_wallet_in_tee` with the agent wallet private key and master wallet address.
+IMMEDIATELY call `store_wallet_in_tee` with the agent wallet private key and master wallet address from Step 4.
 Save the returned `agentWalletAddress`.
 
 ## Step 6 — Register wallet in backend
-Call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
+IMMEDIATELY call `register_wallet` with `agentWalletAddress` and `masterWalletAddress`.
 Save the returned `walletId`.
 
 ## Step 7 — Build the strategy
