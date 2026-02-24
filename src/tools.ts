@@ -273,13 +273,13 @@ export default function (api: any) {
     parameters: Type.Object({}),
     async execute() {
       const { npub } = loadKeys(pluginConfig);
-      const res = await fetch(`${baseUrl}/api/is-waitlisted/${npub}`);
+      const res = await fetch(`${baseUrl}/api/is-whitelisted/${npub}`);
       if (!res.ok) throw new Error(`check_trading_access failed: ${res.status}`);
       const data = await res.json();
       return textResult({
         npub,
-        hasAccess: data.isWaitlisted,
-        message: data.isWaitlisted
+        hasAccess: data.isWhitelisted,
+        message: data.isWhitelisted
           ? "You have trading access."
           : "You do not have trading access. Use request_trading_access to request it.",
       });
