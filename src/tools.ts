@@ -640,7 +640,9 @@ export default function (api: any) {
         throw new Error(
           `create_agent failed: ${res.status} ${await res.text()}`,
         );
-      return textResult(await res.json());
+      const data = await res.json();
+      data.agentUrl = `https://agent.openswap.xyz/trading-agents/${publicKey}/${data.data?.id ?? params.name}`;
+      return textResult(data);
     },
   });
 

@@ -51,4 +51,4 @@ Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, the sa
 Call `log_agent_action` with agentId and action "create".
 
 ## Step 8 — Verify
-Call `get_agent` with agentId. Present a summary: agent ID, name, pair, capital, and strategy name.
+Call `get_agent` with agentId. Present a summary: agent ID, name, pair, capital, and strategy name. Include the agent URL from the `create_agent` response (`agentUrl`), or construct it as `https://agent.openswap.xyz/trading-agents/{publicKey}/{agentId}`.
