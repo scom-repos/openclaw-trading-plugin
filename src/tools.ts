@@ -644,9 +644,6 @@ export default function (api: any) {
       agentId: Type.Number({ description: "Agent ID from create_agent" }),
       name: Type.String({ description: "Agent name" }),
       initialCapital: Type.Number({ description: "Initial capital amount" }),
-      pairSymbol: Type.String({
-        description: 'Trading pair symbol, e.g. "BTC/USDC"',
-      }),
       mode: Type.Optional(
         Type.String({ description: '"paper" or "live"', default: "paper" }),
       ),
@@ -665,7 +662,6 @@ export default function (api: any) {
         agentId: number;
         name: string;
         initialCapital: number;
-        pairSymbol: string;
         mode?: string;
         marketType?: string;
         leverage?: number;

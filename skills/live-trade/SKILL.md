@@ -70,7 +70,7 @@ Call `create_agent` with:
 Save returned agentId.
 
 ## Step 10 — Notify the trading bot
-Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, strategy, mode "live", marketType "perp",
+Call `notify_trading_bot` with agentId, name, initialCapital, strategy, mode "live", marketType "perp",
 leverage (same value as strategy.risk_manager.leverage),
 and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd where buy_limit_usd = initialCapital × leverage).
 
