@@ -52,10 +52,11 @@ Save the returned `walletId`.
 ## Step 7 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
 Reference `strategy-indicators`, `strategy-rules`, `strategy-risk`, `strategy-examples` skills.
+**Leverage belongs inside `strategy.risk_manager.leverage`** — do NOT pass leverage as a top-level param. Ask the user for their desired leverage and set it in `risk_manager.leverage`.
 
 ## Step 8 — Confirm before creating
-Present summary: agent name, pair, capital, leverage, strategy, master wallet, agent wallet.
-Ask for initial capital and leverage. Do NOT proceed until user confirms.
+Present summary: agent name, pair, capital, strategy (including leverage from risk_manager), master wallet, agent wallet.
+Ask for initial capital. Do NOT proceed until user confirms.
 
 ## Step 9 — Create the agent (live mode)
 Call `create_agent` with:
@@ -76,4 +77,4 @@ Compute `buyLimitUsd = initialCapital × leverage` (leverage from `strategy.risk
 
 ## Step 12 — Log & verify
 Call `log_agent_action` with agentId and action "create".
-Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, leverage, wallet addresses. Include the agent URL from the `create_agent` response (`agentUrl`).
+Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, wallet addresses. Include the agent URL from the `create_agent` response (`agentUrl`).
