@@ -107,10 +107,13 @@ Common values: 60 (1min), 300 (5min), 3600 (1hr), 86400 (1day).
 {
   "order": {
     "type": "market",
+    "side": "long",
     "size": { "mode": "all" }
   }
 }
 ```
+
+- `side` — `"long"` or `"short"` (required for open rules)
 
 ### Size Modes
 

@@ -23,6 +23,7 @@ const SizeConfig = Type.Object({
 
 const OrderConfig = Type.Object({
   type: Type.String({ description: '"market"' }),
+  side: Type.Optional(Type.String({ description: '"long" or "short"' })),
   size: Type.Optional(SizeConfig),
 });
 
@@ -68,6 +69,7 @@ const RiskManagerConfig = Type.Object({
   trailing_stop: Type.Optional(TrailingStopConfig),
   cooldown: Type.Optional(Type.Object({ entry_secs: Type.Optional(Type.Number()) })),
   per_bar_limits: Type.Optional(Type.Array(PerBarLimit)),
+  leverage: Type.Optional(Type.Number({ description: "Leverage multiplier" })),
 });
 
 const Strategy = Type.Object({

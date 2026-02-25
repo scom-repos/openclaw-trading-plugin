@@ -19,6 +19,14 @@ All fields are optional. Omit or set `"enabled": false` to disable.
 }
 ```
 
+## Leverage
+
+Multiplier applied to position size for perpetual/margin trading.
+
+```json
+{"leverage": 20}
+```
+
 ## Stop Loss
 
 Exit when loss reaches a threshold.

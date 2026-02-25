@@ -21,7 +21,7 @@ Buy when RSI oversold, sell when overbought, with percent-based risk management.
       "id": "buy_oversold",
       "intent": "open",
       "when": {"indicator":"rsi14","op":"lt","value":30},
-      "order": {"type":"market","size":{"mode":"all"}}
+      "order": {"type":"market","side":"long","size":{"mode":"all"}}
     },
     {
       "id": "sell_overbought",
@@ -32,7 +32,8 @@ Buy when RSI oversold, sell when overbought, with percent-based risk management.
   ],
   "risk_manager": {
     "stop_loss": {"enabled":true,"mode":"percent","value":5.0},
-    "take_profit": {"enabled":true,"mode":"percent","value":10.0}
+    "take_profit": {"enabled":true,"mode":"percent","value":10.0},
+    "leverage": 20
   }
 }
 ```
@@ -55,7 +56,7 @@ Trend following using EMA golden/death cross with ATR-based stops and trailing.
       "id": "golden_cross",
       "intent": "open",
       "when": {"indicator":"ema20","op":"crosses_above","other":"ema50"},
-      "order": {"type":"market","size":{"mode":"percent","value":100}}
+      "order": {"type":"market","side":"long","size":{"mode":"percent","value":100}}
     },
     {
       "id": "death_cross",
@@ -93,7 +94,7 @@ Enter on bullish MACD cross + positive histogram, exit on bearish cross.
           {"indicator":"macd.histogram","op":"gt","value":0}
         ]
       },
-      "order": {"type":"market","size":{"mode":"all"}}
+      "order": {"type":"market","side":"long","size":{"mode":"all"}}
     },
     {
       "id": "bearish_cross",
@@ -132,7 +133,7 @@ Mean reversion: buy at lower band + oversold StochRSI, sell at upper band + over
           {"indicator":"stochrsi_k","op":"lt","value":20}
         ]
       },
-      "order": {"type":"market","size":{"mode":"all"}}
+      "order": {"type":"market","side":"long","size":{"mode":"all"}}
     },
     {
       "id": "bb_upper_sell",
