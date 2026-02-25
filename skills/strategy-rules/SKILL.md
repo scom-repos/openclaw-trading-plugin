@@ -113,7 +113,7 @@ Common values: 60 (1min), 300 (5min), 3600 (1hr), 86400 (1day).
 }
 ```
 
-- `side` — `"long"` or `"short"` (required for open rules)
+- `side` — `"long"` or `"short"` (required for all rules, including close rules — must match the position side)
 
 ### Size Modes
 

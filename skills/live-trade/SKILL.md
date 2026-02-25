@@ -66,7 +66,7 @@ Call `create_agent` with:
 - buyLimit: initialCapital × leverage
 - walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)
-- settlement_config: { eth_address: masterWalletAddress, agent_address: agentWalletAddress }
+- settlement_config: `{ "eth_address": masterWalletAddress, "agent_address": agentWalletAddress }`
 Save returned agentId.
 
 ## Step 10 — Notify the trading bot
