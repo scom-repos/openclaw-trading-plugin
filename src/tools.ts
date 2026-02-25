@@ -596,6 +596,9 @@ export default function (api: any) {
       const auth = getAuthHeader(publicKey, privateKey);
       const mode = params.mode ?? "paper";
 
+      const leverage = (params.strategy as any)?.risk_manager?.leverage ?? 1;
+      const buyLimit = params.initialCapital * leverage;
+
       const payload: Record<string, unknown> = {
         name: params.name,
         avatarUrl: "",
@@ -603,7 +606,10 @@ export default function (api: any) {
         mode,
         marketType: params.marketType ?? "spot",
         owner: npub,
-        pubkey: publicKey,
+        pubkey: Nip19.npubEncode(publicKey),
+        isActive: true,
+        leverage,
+        buyLimit,
       };
       if (params.chainId != null) payload.chainId = params.chainId;
       if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;
