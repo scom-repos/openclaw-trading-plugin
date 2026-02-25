@@ -52,7 +52,7 @@ Save the returned `walletId`.
 ## Step 7 — Build the strategy
 Same as paper-trade: ask user what strategy, construct with indicators/rules/risk_manager.
 Reference `strategy-indicators`, `strategy-rules`, `strategy-risk`, `strategy-examples` skills.
-**Leverage belongs inside `strategy.risk_manager.leverage`** — do NOT pass leverage as a top-level param. Ask the user for their desired leverage and set it in `risk_manager.leverage`.
+Ask the user for their desired leverage and set it in `strategy.risk_manager.leverage`.
 
 ## Step 8 — Confirm before creating
 Present summary: agent name, pair, capital, strategy (including leverage from risk_manager), master wallet, agent wallet.
@@ -60,8 +60,10 @@ Ask for initial capital. Do NOT proceed until user confirms.
 
 ## Step 9 — Create the agent (live mode)
 Call `create_agent` with:
-- name, initialCapital, strategy
+- name, initialCapital, strategy, strategyDescription
 - mode: "live", marketType: "perp"
+- leverage: same value as strategy.risk_manager.leverage
+- buyLimit: initialCapital × leverage
 - walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)
 - settlementConfig: { eth_address: masterWalletAddress, agent_address: agentWalletAddress }

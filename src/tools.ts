@@ -569,6 +569,8 @@ export default function (api: any) {
       symbol: Type.Optional(Type.String({ description: 'Trading pair symbol, e.g. "ETH/USDC" (live mode)' })),
       protocol: Type.Optional(Type.String({ description: '"hyperliquid" (live mode)', default: "hyperliquid" })),
       chainId: Type.Optional(Type.Number({ description: "Chain ID (998=testnet, live mode)" })),
+      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (must match strategy.risk_manager.leverage)" })),
+      buyLimit: Type.Optional(Type.Number({ description: "Buy limit in USD (initialCapital × leverage)" })),
       settlementConfig: Type.Optional(Type.Object({
         eth_address: Type.String({ description: "Master wallet address" }),
         agent_address: Type.String({ description: "Agent wallet address" }),
@@ -589,15 +591,14 @@ export default function (api: any) {
         symbol?: string;
         protocol?: string;
         chainId?: number;
+        leverage?: number;
+        buyLimit?: number;
         settlementConfig?: { eth_address: string; agent_address: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
       const auth = getAuthHeader(publicKey, privateKey);
       const mode = params.mode ?? "paper";
-
-      const leverage = (params.strategy as any)?.risk_manager?.leverage ?? 1;
-      const buyLimit = params.initialCapital * leverage;
 
       const payload: Record<string, unknown> = {
         name: params.name,
@@ -608,9 +609,9 @@ export default function (api: any) {
         owner: npub,
         pubkey: Nip19.npubEncode(publicKey),
         isActive: true,
-        leverage,
-        buyLimit,
       };
+      if (params.leverage != null) payload.leverage = params.leverage;
+      if (params.buyLimit != null) payload.buyLimit = params.buyLimit;
       if (params.chainId != null) payload.chainId = params.chainId;
       if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;
       if (params.strategy) payload.strategy = params.strategy;
