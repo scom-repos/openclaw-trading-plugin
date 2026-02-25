@@ -489,6 +489,61 @@ export default function (api: any) {
   });
 
   api.registerTool({
+    name: "get_hyperliquid_balance",
+    description: "Get USDC balance of a Hyperliquid wallet (public endpoint, no auth needed)",
+    parameters: Type.Object({
+      walletAddress: Type.String({ description: "Wallet address (0x...)" }),
+      chainId: Type.Optional(Type.Number({ description: "998=testnet, 999=mainnet", default: 998 })),
+    }),
+    async execute(
+      _id: string,
+      params: { walletAddress: string; chainId?: number },
+    ) {
+      const chainId = params.chainId ?? 998;
+      const apiUrl = chainId === 999
+        ? "https://api.hyperliquid.xyz/info"
+        : "https://api.hyperliquid-testnet.xyz/info";
+
+      // Try Standard Account first
+      const chRes = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "clearinghouseState", user: params.walletAddress }),
+      });
+      if (!chRes.ok) throw new Error(`clearinghouseState failed: ${chRes.status}`);
+      const chData = await chRes.json();
+      const withdrawable = parseFloat(chData.withdrawable ?? "0");
+      if (withdrawable > 0) {
+        return textResult({ walletAddress: params.walletAddress, chainId, balance: withdrawable, accountType: "standard" });
+      }
+
+      // Try Unified Account (spotClearinghouseState)
+      const spotRes = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "spotClearinghouseState", user: params.walletAddress }),
+      });
+      if (!spotRes.ok) throw new Error(`spotClearinghouseState failed: ${spotRes.status}`);
+      const spotData = await spotRes.json();
+
+      let balance = 0;
+      // Prefer tokenToAvailableAfterMaintenance (Unified Accounts with positions)
+      const tokenAvail = spotData.tokenToAvailableAfterMaintenance;
+      if (Array.isArray(tokenAvail)) {
+        const usdcEntry = tokenAvail.find((e: any) => e[0] === 0);
+        if (usdcEntry) balance = parseFloat(usdcEntry[1]);
+      }
+      // Fallback to balances array
+      if (balance === 0 && Array.isArray(spotData.balances)) {
+        const usdcBal = spotData.balances.find((b: any) => b.coin === "USDC");
+        if (usdcBal) balance = parseFloat(usdcBal.total ?? "0");
+      }
+
+      return textResult({ walletAddress: params.walletAddress, chainId, balance, accountType: "unified" });
+    },
+  });
+
+  api.registerTool({
     name: "register_trader",
     description: "Register a trader in the settlement engine (final step of live trading setup)",
     parameters: Type.Object({

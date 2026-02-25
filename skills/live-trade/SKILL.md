@@ -54,11 +54,17 @@ Same as paper-trade: ask user what strategy, construct with indicators/rules/ris
 Reference `strategy-indicators`, `strategy-rules`, `strategy-risk`, `strategy-examples` skills.
 Ask the user for their desired leverage and set it in `strategy.risk_manager.leverage`.
 
-## Step 8 — Confirm before creating
-Present summary: agent name, pair, capital, strategy (including leverage from risk_manager), master wallet, agent wallet.
-Ask for initial capital. Do NOT proceed until user confirms.
+## Step 8 — Fetch wallet balance
+IMMEDIATELY call `get_hyperliquid_balance` with `masterWalletAddress` and `chainId`.
+Save the returned `balance` as `initialCapital`.
+If balance is 0, warn the user that the wallet has no USDC balance and STOP.
 
-## Step 9 — Create the agent (live mode)
+## Step 9 — Confirm before creating
+Present summary: agent name, pair, strategy (including leverage from risk_manager), master wallet, agent wallet, and the fetched balance as initialCapital.
+Do NOT ask the user for initial capital — it is auto-set from the wallet balance.
+Ask user to confirm the overall agent setup. Do NOT proceed until user confirms.
+
+## Step 10 — Create the agent (live mode)
 Call `create_agent` with:
 - name, initialCapital, strategy, strategyDescription
 - mode: "live", marketType: "perp"
@@ -69,15 +75,15 @@ Call `create_agent` with:
 - settlement_config: `{ "eth_address": masterWalletAddress, "agent_address": agentWalletAddress }`
 Save returned agentId.
 
-## Step 10 — Notify the trading bot
+## Step 11 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, strategy, mode "live", marketType "perp",
 leverage (same value as strategy.risk_manager.leverage),
 and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd where buy_limit_usd = initialCapital × leverage).
 
-## Step 11 — Register trader in settlement engine
+## Step 12 — Register trader in settlement engine
 Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
 Compute `buyLimitUsd = initialCapital × leverage` (leverage from `strategy.risk_manager.leverage`).
 
-## Step 12 — Log & verify
+## Step 13 — Log & verify
 Call `log_agent_action` with agentId and action "create".
 Call `get_agent` with agentId. Present summary: agent ID, name, pair, capital, wallet addresses. Include the agent URL from the `create_agent` response (`agentUrl`).
