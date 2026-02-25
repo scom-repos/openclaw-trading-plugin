@@ -571,7 +571,7 @@ export default function (api: any) {
       chainId: Type.Optional(Type.Number({ description: "Chain ID (998=testnet, live mode)" })),
       leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (must match strategy.risk_manager.leverage)" })),
       buyLimit: Type.Optional(Type.Number({ description: "Buy limit in USD (initialCapital × leverage)" })),
-      settlementConfig: Type.Optional(Type.Object({
+      settlement_config: Type.Optional(Type.Object({
         eth_address: Type.String({ description: "Master wallet address" }),
         agent_address: Type.String({ description: "Agent wallet address" }),
       })),
@@ -593,7 +593,7 @@ export default function (api: any) {
         chainId?: number;
         leverage?: number;
         buyLimit?: number;
-        settlementConfig?: { eth_address: string; agent_address: string };
+        settlement_config?: { eth_address: string; agent_address: string };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
@@ -620,7 +620,7 @@ export default function (api: any) {
       if (params.walletAddress) payload.walletAddress = params.walletAddress;
       if (params.symbol) payload.symbol = params.symbol;
       if (params.protocol) payload.protocol = params.protocol;
-      if (params.settlementConfig) payload.settlement_config = params.settlementConfig;
+      if (params.settlement_config) payload.settlement_config = params.settlement_config;
 
       const res = await fetch(`${baseUrl}/api/agent`, {
         method: "POST",
