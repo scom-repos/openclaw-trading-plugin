@@ -71,7 +71,8 @@ Save returned agentId.
 
 ## Step 10 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, strategy, mode "live", marketType "perp",
-and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol).
+leverage (same value as strategy.risk_manager.leverage),
+and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd where buy_limit_usd = initialCapital × leverage).
 
 ## Step 11 — Register trader in settlement engine
 Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.

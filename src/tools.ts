@@ -653,6 +653,7 @@ export default function (api: any) {
       marketType: Type.Optional(
         Type.String({ description: '"spot" or "perp"', default: "spot" }),
       ),
+      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (required for perp/live mode)" })),
       strategy: Strategy,
       description: Type.Optional(Type.String({ description: "Agent description" })),
       settlementConfig: Type.Optional(Type.String({ description: "JSON-stringified settlement config (live mode)" })),
@@ -667,6 +668,7 @@ export default function (api: any) {
         pairSymbol: string;
         mode?: string;
         marketType?: string;
+        leverage?: number;
         strategy: Record<string, unknown>;
         description?: string;
         settlementConfig?: string;
@@ -688,6 +690,7 @@ export default function (api: any) {
         signed_at: signedAt,
         market_type: params.marketType ?? "spot",
       };
+      if (params.leverage != null) body.leverage = params.leverage;
       if (params.settlementConfig != null) body.settlement_config = params.settlementConfig;
       if (params.simulationConfig) body.simulation_config = params.simulationConfig;
 
