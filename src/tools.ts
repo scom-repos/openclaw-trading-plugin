@@ -83,6 +83,7 @@ const Strategy = Type.Object({
 const SimulationConfig = Type.Object({
   asset_type: Type.String({ description: '"crypto" or "stocks"' }),
   protocol: Type.Optional(Type.String({ description: '"uniswap" or "hyperliquid" (required when asset_type is "crypto")' })),
+  chain_id: Type.Optional(Type.Number({ description: "Uniswap: 1 (Ethereum), 56 (BSC), 8453 (Base), 42161 (Arbitrum). Hyperliquid: 998 (testnet), 999 (mainnet). Not needed for stocks." })),
 });
 
 // ── Constants ──────────────────────────────────────────────────────
@@ -585,7 +586,7 @@ export default function (api: any) {
         marketType?: string;
         strategy?: Record<string, unknown>;
         strategyDescription?: string;
-        simulationConfig?: { asset_type: string; protocol?: string };
+        simulationConfig?: { asset_type: string; protocol?: string; chain_id?: number };
         walletId?: number;
         walletAddress?: string;
         symbol?: string;
@@ -668,7 +669,7 @@ export default function (api: any) {
         strategy: Record<string, unknown>;
         description?: string;
         settlementConfig?: string;
-        simulationConfig?: { asset_type: string; protocol?: string };
+        simulationConfig?: { asset_type: string; protocol?: string; chain_id?: number };
       },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
