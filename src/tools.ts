@@ -96,11 +96,6 @@ const DEFAULT_WALLET_AGENT_URL =
 const DEFAULT_SETTLEMENT_ENGINE_URL =
   "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine";
 
-function defaultSimulationConfig(marketType: string): { asset_type: string; protocol?: string } {
-  if (marketType === "perp") return { asset_type: "crypto", protocol: "hyperliquid" };
-  return { asset_type: "crypto", protocol: "uniswap" };
-}
-
 function loadKeys(config: any): {
   privateKey: string;
   publicKey: string;
@@ -569,7 +564,6 @@ export default function (api: any) {
       strategy: Type.Optional(Strategy),
       strategyDescription: Type.Optional(Type.String({ description: "Human-readable strategy summary" })),
       simulationConfig: Type.Optional(SimulationConfig),
-      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (live mode)" })),
       walletId: Type.Optional(Type.Number({ description: "Wallet ID from register_wallet (live mode)" })),
       walletAddress: Type.Optional(Type.String({ description: "Agent wallet address (live mode)" })),
       symbol: Type.Optional(Type.String({ description: 'Trading pair symbol, e.g. "ETH/USDC" (live mode)' })),
@@ -590,7 +584,6 @@ export default function (api: any) {
         strategy?: Record<string, unknown>;
         strategyDescription?: string;
         simulationConfig?: { asset_type: string; protocol?: string };
-        leverage?: number;
         walletId?: number;
         walletAddress?: string;
         symbol?: string;
@@ -611,27 +604,16 @@ export default function (api: any) {
         marketType: params.marketType ?? "spot",
         owner: npub,
         pubkey: publicKey,
-        chainId: mode === "live" ? (params.chainId ?? 998) : 1,
       };
-      if (mode === "paper") {
-        payload.simulationConfig = params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot");
-      }
+      if (params.chainId != null) payload.chainId = params.chainId;
+      if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;
       if (params.strategy) payload.strategy = params.strategy;
       if (params.strategyDescription) payload.strategyDescription = params.strategyDescription;
-
-      if (mode === "live") {
-        payload.isActive = true;
-        payload.marketType = "perp";
-        if (params.leverage) {
-          payload.leverage = params.leverage;
-          payload.buyLimit = params.initialCapital * params.leverage;
-        }
-        if (params.walletId) payload.walletId = params.walletId;
-        if (params.walletAddress) payload.walletAddress = params.walletAddress;
-        if (params.symbol) payload.symbol = params.symbol;
-        if (params.protocol) payload.protocol = params.protocol;
-        if (params.settlementConfig) payload.settlement_config = params.settlementConfig;
-      }
+      if (params.walletId != null) payload.walletId = params.walletId;
+      if (params.walletAddress) payload.walletAddress = params.walletAddress;
+      if (params.symbol) payload.symbol = params.symbol;
+      if (params.protocol) payload.protocol = params.protocol;
+      if (params.settlementConfig) payload.settlement_config = params.settlementConfig;
 
       const res = await fetch(`${baseUrl}/api/agent`, {
         method: "POST",
@@ -664,9 +646,8 @@ export default function (api: any) {
       marketType: Type.Optional(
         Type.String({ description: '"spot" or "perp"', default: "spot" }),
       ),
-      strategy: Type.Optional(Strategy),
+      strategy: Strategy,
       description: Type.Optional(Type.String({ description: "Agent description" })),
-      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (live mode)" })),
       settlementConfig: Type.Optional(Type.String({ description: "JSON-stringified settlement config (live mode)" })),
       simulationConfig: Type.Optional(SimulationConfig),
     }),
@@ -679,9 +660,8 @@ export default function (api: any) {
         pairSymbol: string;
         mode?: string;
         marketType?: string;
-        strategy?: Record<string, unknown>;
+        strategy: Record<string, unknown>;
         description?: string;
-        leverage?: number;
         settlementConfig?: string;
         simulationConfig?: { asset_type: string; protocol?: string };
       },
@@ -695,24 +675,14 @@ export default function (api: any) {
         owner: npub,
         avatar_url: null,
         initial_capital: params.initialCapital,
-        strategy_config: params.strategy ?? {
-          name: params.name,
-          symbol: params.pairSymbol,
-          indicators: [],
-          rules: [],
-          risk_manager: {},
-        },
+        strategy_config: params.strategy,
         description: params.description ?? null,
         mode: params.mode ?? "paper",
         signed_at: signedAt,
         market_type: params.marketType ?? "spot",
       };
-      if (params.leverage != null) body.leverage = params.leverage;
       if (params.settlementConfig != null) body.settlement_config = params.settlementConfig;
-      const mode = params.mode ?? "paper";
-      if (mode === "paper") {
-        body.simulation_config = params.simulationConfig ?? defaultSimulationConfig(params.marketType ?? "spot");
-      }
+      if (params.simulationConfig) body.simulation_config = params.simulationConfig;
 
       const signature = Signer.getSignature(body, privateKey, {
         id: "number",

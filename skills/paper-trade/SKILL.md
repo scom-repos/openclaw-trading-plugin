@@ -42,7 +42,7 @@ If the user says something general like "EMA crossover", construct a reasonable 
 Present a summary of what will be created: agent name, trading pair, initial capital, strategy name, indicators, entry/exit rules, and risk settings. Ask the user to confirm before proceeding. Do NOT call `create_agent` until the user explicitly confirms.
 
 ## Step 5 — Create the agent
-Call `create_agent` with name, initialCapital, the strategy object, and `simulationConfig`. The `simulationConfig` is auto-inferred from marketType (spot defaults to `{"asset_type":"crypto","protocol":"uniswap"}`, perp to `{"asset_type":"crypto","protocol":"hyperliquid"}`). Only override if the user specifies stocks (`{"asset_type":"stocks"}`). Save the returned agentId.
+Call `create_agent` with name, initialCapital, the strategy object, and `simulationConfig`. You must provide `simulationConfig` explicitly — use these defaults unless the user specifies otherwise: spot → `{"asset_type":"crypto","protocol":"uniswap"}`, perp → `{"asset_type":"crypto","protocol":"hyperliquid"}`, stocks → `{"asset_type":"stocks"}`. Save the returned agentId.
 
 ## Step 6 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, the same strategy, and the same `simulationConfig`.

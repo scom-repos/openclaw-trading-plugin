@@ -61,17 +61,18 @@ Ask for initial capital and leverage. Do NOT proceed until user confirms.
 Call `create_agent` with:
 - name, initialCapital, strategy
 - mode: "live", marketType: "perp"
-- leverage, walletId, walletAddress, symbol
+- walletId, walletAddress, symbol
 - protocol: "hyperliquid", chainId (998 for testnet)
 - settlementConfig: { eth_address: masterWalletAddress, agent_address: agentWalletAddress }
 Save returned agentId.
 
 ## Step 10 — Notify the trading bot
 Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, strategy, mode "live", marketType "perp",
-leverage, and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd).
+and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol).
 
 ## Step 11 — Register trader in settlement engine
 Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
+Compute `buyLimitUsd = initialCapital × leverage` (leverage from `strategy.risk_manager.leverage`).
 
 ## Step 12 — Log & verify
 Call `log_agent_action` with agentId and action "create".
