@@ -79,10 +79,12 @@ Save returned agentId.
 Call `notify_trading_bot` with agentId, name, initialCapital, strategy, mode "live", marketType "perp",
 leverage (same value as strategy.risk_manager.leverage),
 and settlementConfig (JSON string with eth_address, agent_address, symbol, chain_id, protocol, buy_limit_usd where buy_limit_usd = initialCapital × leverage).
+Then proceed to Step 12.
 
 ## Step 12 — Register trader in settlement engine
-Call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
 Compute `buyLimitUsd = initialCapital × leverage` (leverage from `strategy.risk_manager.leverage`).
+IMMEDIATELY call `register_trader` with agentId, masterWalletAddress, agentWalletAddress, symbol, chainId, protocol, buyLimitUsd.
+Do NOT skip this step — the agent will not trade without settlement engine registration.
 
 ## Step 13 — Log & verify
 Call `log_agent_action` with agentId and action "create".
