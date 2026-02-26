@@ -490,14 +490,14 @@ export default function (api: any) {
 
   api.registerTool({
     name: "get_hyperliquid_balance",
-    description: "Get USDC balance of a Hyperliquid wallet (public endpoint, no auth needed)",
+    description: "Get USDC balance of a Hyperliquid master wallet (public endpoint, no auth needed). Use the master wallet address, not the agent/API wallet.",
     parameters: Type.Object({
-      walletAddress: Type.String({ description: "Wallet address (0x...)" }),
+      masterWalletAddress: Type.String({ description: "Master wallet address (0x...), not the agent/API wallet" }),
       chainId: Type.Optional(Type.Number({ description: "998=testnet, 999=mainnet", default: 998 })),
     }),
     async execute(
       _id: string,
-      params: { walletAddress: string; chainId?: number },
+      params: { masterWalletAddress: string; chainId?: number },
     ) {
       const chainId = params.chainId ?? 998;
       const apiUrl = chainId === 999
@@ -508,20 +508,20 @@ export default function (api: any) {
       const chRes = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "clearinghouseState", user: params.walletAddress }),
+        body: JSON.stringify({ type: "clearinghouseState", user: params.masterWalletAddress }),
       });
       if (!chRes.ok) throw new Error(`clearinghouseState failed: ${chRes.status}`);
       const chData = await chRes.json();
       const withdrawable = parseFloat(chData.withdrawable ?? "0");
       if (withdrawable > 0) {
-        return textResult({ walletAddress: params.walletAddress, chainId, balance: withdrawable, accountType: "standard" });
+        return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance: withdrawable, accountType: "standard" });
       }
 
       // Try Unified Account (spotClearinghouseState)
       const spotRes = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "spotClearinghouseState", user: params.walletAddress }),
+        body: JSON.stringify({ type: "spotClearinghouseState", user: params.masterWalletAddress }),
       });
       if (!spotRes.ok) throw new Error(`spotClearinghouseState failed: ${spotRes.status}`);
       const spotData = await spotRes.json();
@@ -539,7 +539,7 @@ export default function (api: any) {
         if (usdcBal) balance = parseFloat(usdcBal.total ?? "0");
       }
 
-      return textResult({ walletAddress: params.walletAddress, chainId, balance, accountType: "unified" });
+      return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance, accountType: "unified" });
     },
   });
 
