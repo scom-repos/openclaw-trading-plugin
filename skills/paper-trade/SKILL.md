@@ -42,10 +42,14 @@ If the user says something general like "EMA crossover", construct a reasonable 
 Present a summary of what will be created: agent name, trading pair, initial capital, strategy name, indicators, entry/exit rules, and risk settings. Ask the user to confirm before proceeding. Do NOT call `create_agent` until the user explicitly confirms.
 
 ## Step 5 — Create the agent
-Call `create_agent` with name, initialCapital, the strategy object, and `simulationConfig`. You must provide `simulationConfig` explicitly — use these defaults unless the user specifies otherwise: spot → `{"asset_type":"crypto","protocol":"uniswap","chain_id":1}`, perp → `{"asset_type":"crypto","protocol":"hyperliquid","chain_id":998}`, stocks → `{"asset_type":"stocks"}`. Save the returned agentId.
+Call `create_agent` with name, initialCapital, the strategy object, `simulationConfig`, and `marketType`.
+You must provide `simulationConfig` explicitly — use these defaults unless the user specifies otherwise: spot → `{"asset_type":"crypto","protocol":"uniswap","chain_id":1}`, perp → `{"asset_type":"crypto","protocol":"hyperliquid","chain_id":998}`, stocks → `{"asset_type":"stocks"}`.
+If marketType is "perp" and the strategy has `risk_manager.leverage`, also pass `leverage` (same value as `strategy.risk_manager.leverage`).
+Save the returned agentId.
 
 ## Step 6 — Notify the trading bot
-Call `notify_trading_bot` with agentId, name, initialCapital, pairSymbol, the same strategy, and the same `simulationConfig`.
+Call `notify_trading_bot` with agentId, name, initialCapital, the same strategy, the same `simulationConfig`, and `marketType`.
+If marketType is "perp", also pass `leverage` (same value as `strategy.risk_manager.leverage`).
 
 ## Step 7 — Log the creation
 Call `log_agent_action` with agentId and action "create".
