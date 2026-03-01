@@ -95,7 +95,7 @@ const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
 const DEFAULT_WALLET_AGENT_URL =
   "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent";
 const DEFAULT_SETTLEMENT_ENGINE_URL =
-  "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine";
+  "https://e51f95b3070b6057428f52a1b312770b943ec275-8081.dstack-pha-prod9.phala.network/settlement-engine";
 
 function loadKeys(config: any): {
   privateKey: string;
@@ -150,6 +150,17 @@ export default function (api: any) {
   const backtestEngineUrl: string = pluginConfig.backtestEngineUrl ?? DEFAULT_BACKTEST_ENGINE_URL;
   const walletAgentUrl: string = pluginConfig.walletAgentUrl ?? DEFAULT_WALLET_AGENT_URL;
   const settlementEngineUrl: string = pluginConfig.settlementEngineUrl ?? DEFAULT_SETTLEMENT_ENGINE_URL;
+
+  // ── Debug logger ───────────────────────────────────────────────
+  const debugLogPath = path.join(os.homedir(), ".openclaw", "logs", "trading-debug.json");
+
+  function debugLog(tool: string, step: string, data: unknown) {
+    try {
+      fs.mkdirSync(path.dirname(debugLogPath), { recursive: true });
+      const entry = { ts: new Date().toISOString(), tool, step, data };
+      fs.appendFileSync(debugLogPath, JSON.stringify(entry) + "\n");
+    } catch {}
+  }
 
   // ── Existing tools ──────────────────────────────────────────────
 
@@ -321,6 +332,7 @@ export default function (api: any) {
     }),
     async execute(_id: string, params: { mode?: string }) {
       const mode = params.mode ?? "paper";
+      debugLog("init_trading_session", "entry", { mode });
       const result: Record<string, unknown> = {};
 
       // Step 1: Check/generate Nostr key
@@ -334,19 +346,30 @@ export default function (api: any) {
       const publicKey = Keys.getPublicKey(pk);
       const npub = Nip19.npubEncode(publicKey);
       result.keys = { ok: true, npub, publicKey, generated };
+      debugLog("init_trading_session", "keys", { npub, generated });
 
       // Step 2: Check trading access
       try {
-        const res = await fetch(`${baseUrl}/api/is-whitelisted/${npub}`);
+        const whitelistUrl = `${baseUrl}/api/is-whitelisted/${npub}`;
+        debugLog("init_trading_session", "api.req /api/is-whitelisted", { url: whitelistUrl });
+        const res = await fetch(whitelistUrl);
         if (!res.ok) {
+          const errText = await res.text().catch(() => null);
+          debugLog("init_trading_session", "api.res /api/is-whitelisted", { status: res.status, body: errText });
           result.access = { ok: false, error: `check failed: ${res.status}` };
+          debugLog("init_trading_session", "result", result);
           return textResult(result);
         }
         const data = await res.json();
+        debugLog("init_trading_session", "api.res /api/is-whitelisted", { status: res.status, body: data });
         result.access = { ok: true, hasAccess: data.isWhitelisted };
-        if (!data.isWhitelisted) return textResult(result);
+        if (!data.isWhitelisted) {
+          debugLog("init_trading_session", "result", result);
+          return textResult(result);
+        }
       } catch (e: any) {
         result.access = { ok: false, error: e.message };
+        debugLog("init_trading_session", "result", result);
         return textResult(result);
       }
 
@@ -354,13 +377,18 @@ export default function (api: any) {
       if (mode === "live") {
         try {
           const auth = getAuthHeader(publicKey, pk);
-          const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+          const walletsUrl = `${baseUrl}/api/wallets?npub=${npub}`;
+          debugLog("init_trading_session", "api.req /api/wallets", { url: walletsUrl });
+          const res = await fetch(walletsUrl, {
             headers: { Authorization: auth },
           });
           if (!res.ok) {
+            const errText = await res.text().catch(() => null);
+            debugLog("init_trading_session", "api.res /api/wallets", { status: res.status, body: errText });
             result.wallets = { ok: false, error: `list_wallets failed: ${res.status}` };
           } else {
             const data = await res.json();
+            debugLog("init_trading_session", "api.res /api/wallets", { status: res.status, body: data });
             const wallets = (data.data || [])
               .filter((w: any) => w.is_active && w.wallet_type === "hyperliquid_agent")
               .map((w: any) => ({
@@ -377,6 +405,7 @@ export default function (api: any) {
         }
       }
 
+      debugLog("init_trading_session", "result", result);
       return textResult(result);
     },
   });
@@ -394,6 +423,7 @@ export default function (api: any) {
       params: { ethAgentPrivateKey: string; masterWalletAddress: string; network?: string },
     ) {
       const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
+      debugLog("setup_live_wallet", "entry", { masterWalletAddress: params.masterWalletAddress, network: params.network ?? "testnet" });
       const result: Record<string, unknown> = {};
 
       // Step 1: Store in TEE
@@ -426,6 +456,7 @@ export default function (api: any) {
           signed_at: "number",
         } as const);
 
+        debugLog("setup_live_wallet", "api.req wallet-agent/wallets", { npub, public_key: walletAgentPubKey, signed_at: signedAt });
         const res = await fetch(`${walletAgentUrl}/wallets`, {
           method: "POST",
           headers: {
@@ -439,6 +470,7 @@ export default function (api: any) {
 
         if (res.ok) {
           agentWalletAddress = data.eth_address ?? data.address;
+          debugLog("setup_live_wallet", "api.res wallet-agent/wallets", { status: res.status, agentWalletAddress });
         } else if (data?.code === "WALLET_EXISTS") {
           const match = data.error?.match(/(0x[0-9a-fA-F]{40})/);
           if (match) {
@@ -452,13 +484,16 @@ export default function (api: any) {
             agentWalletAddress = wallets[wallets.length - 1]?.eth_address;
           }
           if (!agentWalletAddress) throw new Error("No wallets found for this npub");
+          debugLog("setup_live_wallet", "api.res wallet-agent/wallets", { status: res.status, agentWalletAddress, walletExists: true });
         } else {
+          debugLog("setup_live_wallet", "api.res wallet-agent/wallets", { status: res.status, error: data });
           throw new Error(`TEE storage failed: ${res.status} ${JSON.stringify(data)}`);
         }
 
         result.teeStorage = { ok: true, agentWalletAddress };
       } catch (e: any) {
         result.teeStorage = { ok: false, error: e.message };
+        debugLog("setup_live_wallet", "result", result);
         return textResult(result);
       }
 
@@ -480,6 +515,7 @@ export default function (api: any) {
         const existing = await findWallet();
         if (existing) {
           result.registration = { ok: true, walletId: existing.id, walletAddress: existing.wallet_address };
+          debugLog("setup_live_wallet", "result", result);
           return textResult(result);
         }
 
@@ -500,24 +536,29 @@ export default function (api: any) {
           } as const,
         );
 
+        const registerBody = {
+          npub,
+          name: `Wallet-${createdAt}`,
+          walletAddress: agentWalletAddress,
+          signature: walletSig,
+          createdAt,
+          walletType: "hyperliquid_agent",
+          masterWalletAddress: params.masterWalletAddress,
+          hyperliquidNetwork: params.network ?? "testnet",
+        };
+        debugLog("setup_live_wallet", "api.req POST /api/wallets", registerBody);
         const res = await fetch(`${baseUrl}/api/wallets`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: auth },
-          body: JSON.stringify({
-            npub,
-            name: `Wallet-${createdAt}`,
-            walletAddress: agentWalletAddress,
-            signature: walletSig,
-            createdAt,
-            walletType: "hyperliquid_agent",
-            masterWalletAddress: params.masterWalletAddress,
-            hyperliquidNetwork: params.network ?? "testnet",
-          }),
+          body: JSON.stringify(registerBody),
         });
+        const resBody = await res.json().catch(() => null);
+        debugLog("setup_live_wallet", "api.res POST /api/wallets", { status: res.status, body: resBody });
         if (!res.ok) {
           const retry = await findWallet();
           if (retry) {
             result.registration = { ok: true, walletId: retry.id, walletAddress: retry.wallet_address };
+            debugLog("setup_live_wallet", "result", result);
             return textResult(result);
           }
           throw new Error(`register_wallet failed: ${res.status}`);
@@ -530,6 +571,7 @@ export default function (api: any) {
         result.registration = { ok: false, error: e.message };
       }
 
+      debugLog("setup_live_wallet", "result", result);
       return textResult(result);
     },
   });
@@ -576,6 +618,7 @@ export default function (api: any) {
       const auth = getAuthHeader(publicKey, privateKey);
       const mode = params.mode ?? "paper";
       const isLive = mode === "live";
+      debugLog("deploy_agent", "entry", params);
       const result: Record<string, unknown> = {};
 
       // Auto-compute buyLimit and settlement_config for live
@@ -585,6 +628,7 @@ export default function (api: any) {
       const settlementConfig = isLive && params.masterWalletAddress && params.walletAddress
         ? { eth_address: params.masterWalletAddress, agent_address: params.walletAddress }
         : undefined;
+      debugLog("deploy_agent", "computed", { buyLimit, settlementConfig });
 
       // Step 1: Create agent (fatal if fails)
       let agentId: number;
@@ -612,17 +656,21 @@ export default function (api: any) {
         if (params.protocol) payload.protocol = params.protocol;
         if (settlementConfig) payload.settlement_config = settlementConfig;
 
+        debugLog("deploy_agent", "create.api.req POST /api/agent", payload);
         const res = await fetch(`${baseUrl}/api/agent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: auth },
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
-          return textResult({ create: { ok: false, error: `create_agent failed: ${res.status} ${await res.text()}` } });
+          const errText = await res.text();
+          debugLog("deploy_agent", "create.api.res", { status: res.status, error: errText });
+          return textResult({ create: { ok: false, error: `create_agent failed: ${res.status} ${errText}` } });
         }
         const data = await res.json();
         agentId = data.agentId;
         agentUrl = `https://agent.openswap.xyz/trading-agents/${publicKey}/${agentId}`;
+        debugLog("deploy_agent", "create.api.res", { status: res.status, body: data });
         result.create = { ok: true, agentId, agentUrl };
       } catch (e: any) {
         return textResult({ create: { ok: false, error: e.message } });
@@ -662,6 +710,7 @@ export default function (api: any) {
           signed_at: "number",
         } as const);
 
+        debugLog("deploy_agent", "notify.api.req POST bot/agents", body);
         const res = await fetch(`${tradingBotUrl}/agents`, {
           method: "POST",
           headers: {
@@ -671,6 +720,8 @@ export default function (api: any) {
           },
           body: JSON.stringify(body),
         });
+        const resBody = res.ok ? await res.json().catch(() => null) : await res.text().catch(() => null);
+        debugLog("deploy_agent", "notify.api.res", { status: res.status, responseBody: resBody });
         result.notify = { ok: res.ok };
         if (!res.ok) (result.notify as any).error = `${res.status}`;
       } catch (e: any) {
@@ -701,6 +752,7 @@ export default function (api: any) {
             signed_at: "number",
           } as const);
 
+          debugLog("deploy_agent", "trader.api.req POST /traders", traderBody);
           const res = await fetch(`${settlementEngineUrl}/traders`, {
             method: "POST",
             headers: {
@@ -710,6 +762,8 @@ export default function (api: any) {
             },
             body: JSON.stringify(traderBody),
           });
+          const resBody = res.ok ? await res.json().catch(() => null) : await res.text().catch(() => null);
+          debugLog("deploy_agent", "trader.api.res", { status: res.status, responseBody: resBody });
           result.registerTrader = { ok: res.ok };
           if (!res.ok) (result.registerTrader as any).error = `${res.status}`;
         } catch (e: any) {
@@ -733,19 +787,18 @@ export default function (api: any) {
           timestamp: "number",
         } as const);
 
+        const logBody = { agentId, action: "create", signature, timestamp };
+        debugLog("deploy_agent", "log.api.req POST /agent-action-log", logBody);
         const res = await fetch(`${baseUrl}/api/agent-action-log`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: auth,
           },
-          body: JSON.stringify({
-            agentId,
-            action: "create",
-            signature,
-            timestamp,
-          }),
+          body: JSON.stringify(logBody),
         });
+        const logResBody = await res.json().catch(() => null);
+        debugLog("deploy_agent", "log.api.res", { status: res.status, body: logResBody });
         result.log = { ok: res.ok };
       } catch {
         result.log = { ok: false };
@@ -754,8 +807,10 @@ export default function (api: any) {
       // Step 5: Verify
       try {
         const res = await fetch(`${baseUrl}/api/agent/${agentId}`);
+        const verifyBody = await res.json().catch(() => null);
+        debugLog("deploy_agent", "verify.api.res GET /api/agent", { status: res.status, body: verifyBody });
         if (res.ok) {
-          result.verify = { ok: true, agent: await res.json() };
+          result.verify = { ok: true, agent: verifyBody };
         } else {
           result.verify = { ok: false };
         }
@@ -763,6 +818,7 @@ export default function (api: any) {
         result.verify = { ok: false };
       }
 
+      debugLog("deploy_agent", "result", result);
       return textResult(result);
     },
   });
