@@ -305,7 +305,22 @@ export default function (api: any) {
         if (usdcBal) balance = parseFloat(usdcBal.total ?? "0");
       }
 
-      return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance, accountType: "unified" });
+      if (balance > 0) {
+        return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance, accountType: "unified" });
+      } else {
+        const appUrl = chainId === 999
+          ? "https://app.hyperliquid.xyz"
+          : "https://app.hyperliquid-testnet.xyz";
+        return textResult({
+          masterWalletAddress: params.masterWalletAddress,
+          chainId,
+          balance,
+          accountType: "unified",
+          depositReminder:
+            `Your wallet has 0 USDC balance. You must deposit USDC into your Hyperliquid wallet before you can trade. ` +
+            `Deposit here: ${appUrl}`,
+        });
+      }
     },
   });
 
