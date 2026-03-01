@@ -203,53 +203,7 @@ export default function (api: any) {
     },
   });
 
-  // ── Paper-trade tools ───────────────────────────────────────────
-
-  api.registerTool({
-    name: "get_or_create_nostr_keys",
-    description:
-      "Get existing or generate new Nostr keypair for agent authentication",
-    parameters: Type.Object({
-      privateKey: Type.Optional(
-        Type.String({ description: "Existing hex private key to import" }),
-      ),
-      checkOnly: Type.Optional(
-        Type.Boolean({ description: "When true, only check if a key exists without generating one" }),
-      ),
-    }),
-    async execute(_id: string, params: { privateKey?: string; checkOnly?: boolean }) {
-      let pk = pluginConfig.nostrPrivateKey;
-      const fromConfig = !!pk;
-
-      if (fromConfig) {
-        const publicKey = Keys.getPublicKey(pk);
-        return textResult({
-          exists: true,
-          privateKey: pk,
-          publicKey,
-          nsec: Nip19.nsecEncode(pk),
-          npub: Nip19.npubEncode(publicKey),
-          persisted: false,
-        });
-      }
-
-      if (params.checkOnly) {
-        return textResult({ exists: false });
-      }
-
-      pk = params.privateKey ?? Keys.generatePrivateKey();
-      const persisted = persistKeyToConfig(pk);
-      const publicKey = Keys.getPublicKey(pk);
-      return textResult({
-        exists: true,
-        privateKey: pk,
-        publicKey,
-        nsec: Nip19.nsecEncode(pk),
-        npub: Nip19.npubEncode(publicKey),
-        persisted,
-      });
-    },
-  });
+  // ── Identity & access tools ─────────────────────────────────────
 
   api.registerTool({
     name: "get_nostr_identity",
@@ -262,25 +216,6 @@ export default function (api: any) {
       }
       const publicKey = Keys.getPublicKey(pk);
       return textResult({ npub: Nip19.npubEncode(publicKey), publicKey });
-    },
-  });
-
-  api.registerTool({
-    name: "check_trading_access",
-    description: "Check if the current user has trading access (is whitelisted)",
-    parameters: Type.Object({}),
-    async execute() {
-      const { npub } = loadKeys(pluginConfig);
-      const res = await fetch(`${baseUrl}/api/is-whitelisted/${npub}`);
-      if (!res.ok) throw new Error(`check_trading_access failed: ${res.status}`);
-      const data = await res.json();
-      return textResult({
-        npub,
-        hasAccess: data.isWhitelisted,
-        message: data.isWhitelisted
-          ? "You have trading access."
-          : "You do not have trading access. Use request_trading_access to request it.",
-      });
     },
   });
 
@@ -306,187 +241,7 @@ export default function (api: any) {
     },
   });
 
-  api.registerTool({
-    name: "list_wallets",
-    description: "List all wallets registered for the current user",
-    parameters: Type.Object({}),
-    async execute() {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-      const auth = getAuthHeader(publicKey, privateKey);
-      const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
-        headers: { Authorization: auth },
-      });
-      if (!res.ok) throw new Error(`list_wallets failed: ${res.status}`);
-      const data = await res.json();
-      const wallets = (data.data || []).map((w: any) => ({
-        walletId: w.id,
-        name: w.name,
-        walletAddress: w.wallet_address,
-        masterWalletAddress: w.master_wallet_address,
-        walletType: w.wallet_type,
-        network: w.hyperliquid_network,
-        isActive: w.is_active,
-      }));
-      return textResult({ npub, wallets });
-    },
-  });
-
   // ── Live-trade tools ──────────────────────────────────────────
-
-  api.registerTool({
-    name: "store_wallet_in_tee",
-    description: "Store an agent wallet private key in the TEE-backed wallet agent (Step 1 of live trading setup)",
-    parameters: Type.Object({
-      ethAgentPrivateKey: Type.String({ description: "Agent wallet private key (hex, without 0x)" }),
-      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
-    }),
-    async execute(
-      _id: string,
-      params: { ethAgentPrivateKey: string; masterWalletAddress: string },
-    ) {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-
-      const pubKeyRes = await fetch(`${walletAgentUrl}/pubkey`);
-      if (!pubKeyRes.ok) throw new Error(`Failed to get wallet-agent pubkey: ${pubKeyRes.status}`);
-      const { publicKey: walletAgentPubKey } = await pubKeyRes.json();
-
-      const ephemeralKey = Keys.generatePrivateKey();
-      const ephemeralPubKey = Keys.getPublicKey(ephemeralKey);
-      const encrypted = await Crypto.encryptSharedMessage(
-        ephemeralKey,
-        walletAgentPubKey,
-        params.ethAgentPrivateKey,
-      );
-      const encryptedPrivateKey = `${encrypted}&pbk=02${ephemeralPubKey}`;
-
-      const signedAt = Math.floor(Date.now() / 1000);
-      const body = {
-        npub,
-        public_key: walletAgentPubKey,
-        encrypted_private_key: encryptedPrivateKey,
-        signed_at: signedAt,
-      };
-      const signature = Signer.getSignature(body, privateKey, {
-        npub: "string",
-        public_key: "string",
-        encrypted_private_key: "string",
-        signed_at: "number",
-      } as const);
-
-      const res = await fetch(`${walletAgentUrl}/wallets`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-public-key": publicKey,
-          "x-signature": signature,
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      let agentWalletAddress: string;
-
-      if (res.ok) {
-        agentWalletAddress = data.eth_address ?? data.address;
-      } else if (data?.code === "WALLET_EXISTS") {
-        const match = data.error?.match(/(0x[0-9a-fA-F]{40})/);
-        if (match) {
-          agentWalletAddress = match[1];
-        } else {
-          const listRes = await fetch(`${walletAgentUrl}/wallets/${npub}`, {
-            headers: { "x-public-key": publicKey },
-          });
-          const listData = await listRes.json();
-          const wallets = listData.wallets || [];
-          agentWalletAddress = wallets[wallets.length - 1]?.eth_address;
-        }
-        if (!agentWalletAddress) throw new Error("No wallets found for this npub");
-      } else {
-        throw new Error(`store_wallet_in_tee failed: ${res.status} ${JSON.stringify(data)}`);
-      }
-
-      return textResult({ agentWalletAddress });
-    },
-  });
-
-  api.registerTool({
-    name: "register_wallet",
-    description: "Register an agent wallet in the backend (Step 2 of live trading setup)",
-    parameters: Type.Object({
-      agentWalletAddress: Type.String({ description: "Agent wallet address (0x...)" }),
-      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
-      network: Type.Optional(Type.String({ description: '"testnet" or "mainnet"', default: "testnet" })),
-    }),
-    async execute(
-      _id: string,
-      params: { agentWalletAddress: string; masterWalletAddress: string; network?: string },
-    ) {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-      const auth = getAuthHeader(publicKey, privateKey);
-
-      const findWallet = async () => {
-        const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
-          headers: { Authorization: auth },
-        });
-        if (!res.ok) return undefined;
-        const data = await res.json();
-        return (data.data || []).find(
-          (w: any) => w.wallet_address.toLowerCase() === params.agentWalletAddress.toLowerCase(),
-        );
-      };
-
-      // Check if wallet already registered
-      const existing = await findWallet();
-      if (existing) {
-        return textResult({ walletId: existing.id, walletAddress: existing.wallet_address });
-      }
-
-      // Register new wallet
-      const createdAt = Math.floor(Date.now() / 1000);
-      const walletSig = Signer.getSignature(
-        {
-          created_at: createdAt,
-          wallet_address: params.agentWalletAddress,
-          action: "connected",
-          npub,
-        },
-        privateKey,
-        {
-          created_at: "number",
-          wallet_address: "string",
-          action: "string",
-          npub: "string",
-        } as const,
-      );
-
-      const res = await fetch(`${baseUrl}/api/wallets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth },
-        body: JSON.stringify({
-          npub,
-          name: `Wallet-${createdAt}`,
-          walletAddress: params.agentWalletAddress,
-          signature: walletSig,
-          createdAt,
-          walletType: "hyperliquid_agent",
-          masterWalletAddress: params.masterWalletAddress,
-          hyperliquidNetwork: params.network ?? "testnet",
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        // Backend may 500 on duplicate — check if wallet exists now
-        const retry = await findWallet();
-        if (retry) return textResult({ walletId: retry.id, walletAddress: retry.wallet_address });
-        throw new Error(`register_wallet failed: ${res.status} ${text}`);
-      }
-
-      // POST succeeded but doesn't return walletId — look it up
-      const created = await findWallet();
-      if (!created) throw new Error("Wallet not found in backend after registration");
-      return textResult({ walletId: created.id, walletAddress: created.wallet_address });
-    },
-  });
 
   api.registerTool({
     name: "get_hyperliquid_balance",
@@ -544,282 +299,6 @@ export default function (api: any) {
   });
 
   api.registerTool({
-    name: "register_trader",
-    description: "Register a trader in the settlement engine (final step of live trading setup)",
-    parameters: Type.Object({
-      agentId: Type.Number({ description: "Agent ID" }),
-      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
-      agentWalletAddress: Type.String({ description: "Agent wallet address (0x...)" }),
-      symbol: Type.String({ description: 'Trading pair, e.g. "ETH/USDC"' }),
-      chainId: Type.Number({ description: "Chain ID (998=testnet)" }),
-      protocol: Type.Optional(Type.String({ description: "Protocol name", default: "hyperliquid" })),
-      buyLimitUsd: Type.Number({ description: "Buy limit in USD (initialCapital * leverage)" }),
-    }),
-    async execute(
-      _id: string,
-      params: {
-        agentId: number;
-        masterWalletAddress: string;
-        agentWalletAddress: string;
-        symbol: string;
-        chainId: number;
-        protocol?: string;
-        buyLimitUsd: number;
-      },
-    ) {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-      const signedAt = Math.floor(Date.now() / 1000);
-
-      const body = {
-        trader_id: params.agentId,
-        owner: npub,
-        eth_address: params.masterWalletAddress,
-        agent_address: params.agentWalletAddress,
-        symbol: params.symbol,
-        chain_id: params.chainId,
-        protocol: params.protocol ?? "hyperliquid",
-        buy_limit_usd: params.buyLimitUsd,
-        execution_mode: "live",
-        signed_at: signedAt,
-      };
-      const signature = Signer.getSignature(body, privateKey, {
-        trader_id: "number",
-        eth_address: "string",
-        symbol: "string",
-        chain_id: "number",
-        signed_at: "number",
-      } as const);
-
-      const res = await fetch(`${settlementEngineUrl}/traders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-public-key": publicKey,
-          "x-signature": signature,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok)
-        throw new Error(`register_trader failed: ${res.status} ${await res.text()}`);
-      return textResult(await res.json());
-    },
-  });
-
-  api.registerTool({
-    name: "create_agent",
-    description: "Create a new trading agent (paper or live)",
-    parameters: Type.Object({
-      name: Type.String({ description: "Agent name" }),
-      initialCapital: Type.Number({ description: "Initial capital amount" }),
-      mode: Type.Optional(
-        Type.String({ description: '"paper" or "live"', default: "paper" }),
-      ),
-      marketType: Type.Optional(
-        Type.String({ description: '"spot" or "perp"', default: "spot" }),
-      ),
-      strategy: Type.Optional(Strategy),
-      strategyDescription: Type.Optional(Type.String({ description: "Human-readable strategy summary" })),
-      simulationConfig: Type.Optional(SimulationConfig),
-      walletId: Type.Optional(Type.Number({ description: "Wallet ID from register_wallet (live mode)" })),
-      walletAddress: Type.Optional(Type.String({ description: "Agent wallet address (live mode)" })),
-      symbol: Type.Optional(Type.String({ description: 'Trading pair symbol, e.g. "ETH/USDC" (live mode)' })),
-      protocol: Type.Optional(Type.String({ description: '"hyperliquid" (live mode)', default: "hyperliquid" })),
-      chainId: Type.Optional(Type.Number({ description: "Chain ID (998=testnet, live mode)" })),
-      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (must match strategy.risk_manager.leverage)" })),
-      buyLimit: Type.Optional(Type.Number({ description: "Buy limit in USD (initialCapital × leverage)" })),
-      settlement_config: Type.Optional(Type.Object({
-        eth_address: Type.String({ description: "Master wallet address" }),
-        agent_address: Type.String({ description: "Agent wallet address" }),
-      })),
-    }),
-    async execute(
-      _id: string,
-      params: {
-        name: string;
-        initialCapital: number;
-        mode?: string;
-        marketType?: string;
-        strategy?: Record<string, unknown>;
-        strategyDescription?: string;
-        simulationConfig?: { asset_type: string; protocol?: string; chain_id?: number };
-        walletId?: number;
-        walletAddress?: string;
-        symbol?: string;
-        protocol?: string;
-        chainId?: number;
-        leverage?: number;
-        buyLimit?: number;
-        settlement_config?: { eth_address: string; agent_address: string };
-      },
-    ) {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-      const auth = getAuthHeader(publicKey, privateKey);
-      const mode = params.mode ?? "paper";
-
-      const payload: Record<string, unknown> = {
-        name: params.name,
-        avatarUrl: "",
-        initialCapital: params.initialCapital,
-        mode,
-        marketType: params.marketType ?? "spot",
-        owner: npub,
-        pubkey: Nip19.npubEncode(publicKey),
-        isActive: true,
-      };
-      if (params.leverage != null) payload.leverage = params.leverage;
-      if (params.buyLimit != null) payload.buyLimit = params.buyLimit;
-      if (params.chainId != null) payload.chainId = params.chainId;
-      if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;
-      if (params.strategy) payload.strategy = params.strategy;
-      if (params.strategyDescription) payload.strategyDescription = params.strategyDescription;
-      if (params.walletId != null) payload.walletId = params.walletId;
-      if (params.walletAddress) payload.walletAddress = params.walletAddress;
-      if (params.symbol) payload.symbol = params.symbol;
-      if (params.protocol) payload.protocol = params.protocol;
-      if (params.settlement_config) payload.settlement_config = params.settlement_config;
-
-      const res = await fetch(`${baseUrl}/api/agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok)
-        throw new Error(
-          `create_agent failed: ${res.status} ${await res.text()}`,
-        );
-      const data = await res.json();
-      data.agentUrl = `https://agent.openswap.xyz/trading-agents/${publicKey}/${data.agentId}`;
-      return textResult(data);
-    },
-  });
-
-  api.registerTool({
-    name: "notify_trading_bot",
-    description: "Notify the trading bot about a new agent",
-    parameters: Type.Object({
-      agentId: Type.Number({ description: "Agent ID from create_agent" }),
-      name: Type.String({ description: "Agent name" }),
-      initialCapital: Type.Number({ description: "Initial capital amount" }),
-      mode: Type.Optional(
-        Type.String({ description: '"paper" or "live"', default: "paper" }),
-      ),
-      marketType: Type.Optional(
-        Type.String({ description: '"spot" or "perp"', default: "spot" }),
-      ),
-      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier (required for perp/live mode)" })),
-      strategy: Strategy,
-      description: Type.Optional(Type.String({ description: "Agent description" })),
-      settlementConfig: Type.Optional(Type.String({ description: "JSON-stringified settlement config (live mode)" })),
-      simulationConfig: Type.Optional(SimulationConfig),
-    }),
-    async execute(
-      _id: string,
-      params: {
-        agentId: number;
-        name: string;
-        initialCapital: number;
-        mode?: string;
-        marketType?: string;
-        leverage?: number;
-        strategy: Record<string, unknown>;
-        description?: string;
-        settlementConfig?: string;
-        simulationConfig?: { asset_type: string; protocol?: string; chain_id?: number };
-      },
-    ) {
-      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
-      const signedAt = Math.floor(Date.now() / 1000);
-
-      const body: Record<string, unknown> = {
-        id: params.agentId,
-        name: params.name,
-        owner: npub,
-        avatar_url: null,
-        initial_capital: params.initialCapital,
-        strategy_config: params.strategy,
-        description: params.description ?? null,
-        mode: params.mode ?? "paper",
-        signed_at: signedAt,
-        market_type: params.marketType ?? "spot",
-      };
-      if (params.leverage != null) body.leverage = params.leverage;
-      if (params.settlementConfig != null) body.settlement_config = params.settlementConfig;
-      if (params.simulationConfig) body.simulation_config = params.simulationConfig;
-
-      const signature = Signer.getSignature(body, privateKey, {
-        id: "number",
-        name: "string",
-        initial_capital: "number",
-        signed_at: "number",
-      } as const);
-
-      const res = await fetch(`${tradingBotUrl}/agents`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-public-key": publicKey,
-          "x-signature": signature,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok)
-        throw new Error(
-          `notify_trading_bot failed: ${res.status} ${await res.text()}`,
-        );
-      return textResult(await res.json());
-    },
-  });
-
-  api.registerTool({
-    name: "log_agent_action",
-    description: "Log an action for a trading agent",
-    parameters: Type.Object({
-      agentId: Type.Number({ description: "Agent ID" }),
-      action: Type.String({ description: 'Action to log, e.g. "create"' }),
-    }),
-    async execute(
-      _id: string,
-      params: { agentId: number; action: string },
-    ) {
-      const { privateKey, publicKey } = loadKeys(pluginConfig);
-      const timestamp = Math.floor(Date.now() / 1000);
-
-      const sigData = {
-        agent_id: params.agentId,
-        action: params.action,
-        user: Nip19.npubEncode(publicKey),
-        timestamp,
-      };
-      const signature = Signer.getSignature(sigData, privateKey, {
-        agent_id: "number",
-        action: "string",
-        user: "string",
-        timestamp: "number",
-      } as const);
-
-      const auth = getAuthHeader(publicKey, privateKey);
-      const res = await fetch(`${baseUrl}/api/agent-action-log`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: auth,
-        },
-        body: JSON.stringify({
-          agentId: params.agentId,
-          action: params.action,
-          signature,
-          timestamp,
-        }),
-      });
-      if (!res.ok)
-        throw new Error(
-          `log_agent_action failed: ${res.status} ${await res.text()}`,
-        );
-      return textResult(await res.json());
-    },
-  });
-
-  api.registerTool({
     name: "get_agent",
     description: "Get details of a trading agent by ID",
     parameters: Type.Object({
@@ -829,6 +308,462 @@ export default function (api: any) {
       const res = await fetch(`${baseUrl}/api/agent/${params.agentId}`);
       if (!res.ok) throw new Error(`get_agent failed: ${res.status}`);
       return textResult(await res.json());
+    },
+  });
+
+  // ── Composite tools ────────────────────────────────────────────
+
+  api.registerTool({
+    name: "init_trading_session",
+    description: "Initialize a trading session: check/generate Nostr keys, verify trading access, and optionally list wallets (live mode). Replaces sequential calls to get_or_create_nostr_keys + check_trading_access + list_wallets.",
+    parameters: Type.Object({
+      mode: Type.Optional(Type.String({ description: '"paper" or "live"', default: "paper" })),
+    }),
+    async execute(_id: string, params: { mode?: string }) {
+      const mode = params.mode ?? "paper";
+      const result: Record<string, unknown> = {};
+
+      // Step 1: Check/generate Nostr key
+      let pk = pluginConfig.nostrPrivateKey;
+      let generated = false;
+      if (!pk) {
+        pk = Keys.generatePrivateKey();
+        persistKeyToConfig(pk);
+        generated = true;
+      }
+      const publicKey = Keys.getPublicKey(pk);
+      const npub = Nip19.npubEncode(publicKey);
+      result.keys = { ok: true, npub, publicKey, generated };
+
+      // Step 2: Check trading access
+      try {
+        const res = await fetch(`${baseUrl}/api/is-whitelisted/${npub}`);
+        if (!res.ok) {
+          result.access = { ok: false, error: `check failed: ${res.status}` };
+          return textResult(result);
+        }
+        const data = await res.json();
+        result.access = { ok: true, hasAccess: data.isWhitelisted };
+        if (!data.isWhitelisted) return textResult(result);
+      } catch (e: any) {
+        result.access = { ok: false, error: e.message };
+        return textResult(result);
+      }
+
+      // Step 3: If live, list wallets
+      if (mode === "live") {
+        try {
+          const auth = getAuthHeader(publicKey, pk);
+          const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+            headers: { Authorization: auth },
+          });
+          if (!res.ok) {
+            result.wallets = { ok: false, error: `list_wallets failed: ${res.status}` };
+          } else {
+            const data = await res.json();
+            const wallets = (data.data || [])
+              .filter((w: any) => w.is_active && w.wallet_type === "hyperliquid_agent")
+              .map((w: any) => ({
+                walletId: w.id,
+                name: w.name,
+                walletAddress: w.wallet_address,
+                masterWalletAddress: w.master_wallet_address,
+                network: w.hyperliquid_network,
+              }));
+            result.wallets = { ok: true, wallets };
+          }
+        } catch (e: any) {
+          result.wallets = { ok: false, error: e.message };
+        }
+      }
+
+      return textResult(result);
+    },
+  });
+
+  api.registerTool({
+    name: "setup_live_wallet",
+    description: "Store an agent wallet key in TEE and register it in the backend. Replaces sequential calls to store_wallet_in_tee + register_wallet.",
+    parameters: Type.Object({
+      ethAgentPrivateKey: Type.String({ description: "Agent wallet private key (hex, without 0x)" }),
+      masterWalletAddress: Type.String({ description: "Master wallet address (0x...)" }),
+      network: Type.Optional(Type.String({ description: '"testnet" or "mainnet"', default: "testnet" })),
+    }),
+    async execute(
+      _id: string,
+      params: { ethAgentPrivateKey: string; masterWalletAddress: string; network?: string },
+    ) {
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
+      const result: Record<string, unknown> = {};
+
+      // Step 1: Store in TEE
+      let agentWalletAddress: string;
+      try {
+        const pubKeyRes = await fetch(`${walletAgentUrl}/pubkey`);
+        if (!pubKeyRes.ok) throw new Error(`Failed to get wallet-agent pubkey: ${pubKeyRes.status}`);
+        const { publicKey: walletAgentPubKey } = await pubKeyRes.json();
+
+        const ephemeralKey = Keys.generatePrivateKey();
+        const ephemeralPubKey = Keys.getPublicKey(ephemeralKey);
+        const encrypted = await Crypto.encryptSharedMessage(
+          ephemeralKey,
+          walletAgentPubKey,
+          params.ethAgentPrivateKey,
+        );
+        const encryptedPrivateKey = `${encrypted}&pbk=02${ephemeralPubKey}`;
+
+        const signedAt = Math.floor(Date.now() / 1000);
+        const body = {
+          npub,
+          public_key: walletAgentPubKey,
+          encrypted_private_key: encryptedPrivateKey,
+          signed_at: signedAt,
+        };
+        const signature = Signer.getSignature(body, privateKey, {
+          npub: "string",
+          public_key: "string",
+          encrypted_private_key: "string",
+          signed_at: "number",
+        } as const);
+
+        const res = await fetch(`${walletAgentUrl}/wallets`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-public-key": publicKey,
+            "x-signature": signature,
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          agentWalletAddress = data.eth_address ?? data.address;
+        } else if (data?.code === "WALLET_EXISTS") {
+          const match = data.error?.match(/(0x[0-9a-fA-F]{40})/);
+          if (match) {
+            agentWalletAddress = match[1];
+          } else {
+            const listRes = await fetch(`${walletAgentUrl}/wallets/${npub}`, {
+              headers: { "x-public-key": publicKey },
+            });
+            const listData = await listRes.json();
+            const wallets = listData.wallets || [];
+            agentWalletAddress = wallets[wallets.length - 1]?.eth_address;
+          }
+          if (!agentWalletAddress) throw new Error("No wallets found for this npub");
+        } else {
+          throw new Error(`TEE storage failed: ${res.status} ${JSON.stringify(data)}`);
+        }
+
+        result.teeStorage = { ok: true, agentWalletAddress };
+      } catch (e: any) {
+        result.teeStorage = { ok: false, error: e.message };
+        return textResult(result);
+      }
+
+      // Step 2: Register wallet in backend
+      try {
+        const auth = getAuthHeader(publicKey, privateKey);
+
+        const findWallet = async () => {
+          const res = await fetch(`${baseUrl}/api/wallets?npub=${npub}`, {
+            headers: { Authorization: auth },
+          });
+          if (!res.ok) return undefined;
+          const data = await res.json();
+          return (data.data || []).find(
+            (w: any) => w.wallet_address.toLowerCase() === agentWalletAddress.toLowerCase(),
+          );
+        };
+
+        const existing = await findWallet();
+        if (existing) {
+          result.registration = { ok: true, walletId: existing.id, walletAddress: existing.wallet_address };
+          return textResult(result);
+        }
+
+        const createdAt = Math.floor(Date.now() / 1000);
+        const walletSig = Signer.getSignature(
+          {
+            created_at: createdAt,
+            wallet_address: agentWalletAddress,
+            action: "connected",
+            npub,
+          },
+          privateKey,
+          {
+            created_at: "number",
+            wallet_address: "string",
+            action: "string",
+            npub: "string",
+          } as const,
+        );
+
+        const res = await fetch(`${baseUrl}/api/wallets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: auth },
+          body: JSON.stringify({
+            npub,
+            name: `Wallet-${createdAt}`,
+            walletAddress: agentWalletAddress,
+            signature: walletSig,
+            createdAt,
+            walletType: "hyperliquid_agent",
+            masterWalletAddress: params.masterWalletAddress,
+            hyperliquidNetwork: params.network ?? "testnet",
+          }),
+        });
+        if (!res.ok) {
+          const retry = await findWallet();
+          if (retry) {
+            result.registration = { ok: true, walletId: retry.id, walletAddress: retry.wallet_address };
+            return textResult(result);
+          }
+          throw new Error(`register_wallet failed: ${res.status}`);
+        }
+
+        const created = await findWallet();
+        if (!created) throw new Error("Wallet not found after registration");
+        result.registration = { ok: true, walletId: created.id, walletAddress: created.wallet_address };
+      } catch (e: any) {
+        result.registration = { ok: false, error: e.message };
+      }
+
+      return textResult(result);
+    },
+  });
+
+  api.registerTool({
+    name: "deploy_agent",
+    description: "Create a trading agent, notify bot, register trader (live), log action, and verify. Replaces sequential calls to create_agent + notify_trading_bot + register_trader + log_agent_action + get_agent.",
+    parameters: Type.Object({
+      name: Type.String({ description: "Agent name" }),
+      initialCapital: Type.Number({ description: "Initial capital amount" }),
+      mode: Type.Optional(Type.String({ description: '"paper" or "live"', default: "paper" })),
+      marketType: Type.Optional(Type.String({ description: '"spot" or "perp"', default: "spot" })),
+      strategy: Strategy,
+      strategyDescription: Type.Optional(Type.String({ description: "Human-readable strategy summary" })),
+      simulationConfig: Type.Optional(SimulationConfig),
+      walletId: Type.Optional(Type.Number({ description: "Wallet ID (live mode)" })),
+      walletAddress: Type.Optional(Type.String({ description: "Agent wallet address (live mode)" })),
+      masterWalletAddress: Type.Optional(Type.String({ description: "Master wallet address (live mode, for settlement)" })),
+      symbol: Type.Optional(Type.String({ description: 'Trading pair, e.g. "ETH/USDC"' })),
+      protocol: Type.Optional(Type.String({ description: '"hyperliquid"', default: "hyperliquid" })),
+      chainId: Type.Optional(Type.Number({ description: "Chain ID (998=testnet)" })),
+      leverage: Type.Optional(Type.Number({ description: "Leverage multiplier" })),
+    }),
+    async execute(
+      _id: string,
+      params: {
+        name: string;
+        initialCapital: number;
+        mode?: string;
+        marketType?: string;
+        strategy: Record<string, unknown>;
+        strategyDescription?: string;
+        simulationConfig?: { asset_type: string; protocol?: string; chain_id?: number };
+        walletId?: number;
+        walletAddress?: string;
+        masterWalletAddress?: string;
+        symbol?: string;
+        protocol?: string;
+        chainId?: number;
+        leverage?: number;
+      },
+    ) {
+      const { privateKey, publicKey, npub } = loadKeys(pluginConfig);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const mode = params.mode ?? "paper";
+      const isLive = mode === "live";
+      const result: Record<string, unknown> = {};
+
+      // Auto-compute buyLimit and settlement_config for live
+      const buyLimit = isLive && params.leverage
+        ? params.initialCapital * params.leverage
+        : undefined;
+      const settlementConfig = isLive && params.masterWalletAddress && params.walletAddress
+        ? { eth_address: params.masterWalletAddress, agent_address: params.walletAddress }
+        : undefined;
+
+      // Step 1: Create agent (fatal if fails)
+      let agentId: number;
+      let agentUrl: string;
+      try {
+        const payload: Record<string, unknown> = {
+          name: params.name,
+          avatarUrl: "",
+          initialCapital: params.initialCapital,
+          mode,
+          marketType: params.marketType ?? "spot",
+          owner: npub,
+          pubkey: Nip19.npubEncode(publicKey),
+          isActive: true,
+        };
+        if (params.leverage != null) payload.leverage = params.leverage;
+        if (buyLimit != null) payload.buyLimit = buyLimit;
+        if (params.chainId != null) payload.chainId = params.chainId;
+        if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;
+        if (params.strategy) payload.strategy = params.strategy;
+        if (params.strategyDescription) payload.strategyDescription = params.strategyDescription;
+        if (params.walletId != null) payload.walletId = params.walletId;
+        if (params.walletAddress) payload.walletAddress = params.walletAddress;
+        if (params.symbol) payload.symbol = params.symbol;
+        if (params.protocol) payload.protocol = params.protocol;
+        if (settlementConfig) payload.settlement_config = settlementConfig;
+
+        const res = await fetch(`${baseUrl}/api/agent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: auth },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          return textResult({ create: { ok: false, error: `create_agent failed: ${res.status} ${await res.text()}` } });
+        }
+        const data = await res.json();
+        agentId = data.agentId;
+        agentUrl = `https://agent.openswap.xyz/trading-agents/${publicKey}/${agentId}`;
+        result.create = { ok: true, agentId, agentUrl };
+      } catch (e: any) {
+        return textResult({ create: { ok: false, error: e.message } });
+      }
+
+      // Step 2: Notify trading bot
+      try {
+        const signedAt = Math.floor(Date.now() / 1000);
+        const body: Record<string, unknown> = {
+          id: agentId,
+          name: params.name,
+          owner: npub,
+          avatar_url: null,
+          initial_capital: params.initialCapital,
+          strategy_config: params.strategy,
+          description: params.strategyDescription ?? null,
+          mode,
+          signed_at: signedAt,
+          market_type: params.marketType ?? "spot",
+        };
+        if (params.leverage != null) body.leverage = params.leverage;
+        if (isLive && settlementConfig) {
+          body.settlement_config = JSON.stringify({
+            ...settlementConfig,
+            symbol: params.symbol,
+            chain_id: params.chainId,
+            protocol: params.protocol ?? "hyperliquid",
+            buy_limit_usd: buyLimit,
+          });
+        }
+        if (params.simulationConfig) body.simulation_config = params.simulationConfig;
+
+        const signature = Signer.getSignature(body, privateKey, {
+          id: "number",
+          name: "string",
+          initial_capital: "number",
+          signed_at: "number",
+        } as const);
+
+        const res = await fetch(`${tradingBotUrl}/agents`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-public-key": publicKey,
+            "x-signature": signature,
+          },
+          body: JSON.stringify(body),
+        });
+        result.notify = { ok: res.ok };
+        if (!res.ok) (result.notify as any).error = `${res.status}`;
+      } catch (e: any) {
+        result.notify = { ok: false, error: e.message };
+      }
+
+      // Step 3: Register trader in settlement engine (live only)
+      if (isLive && params.masterWalletAddress && params.walletAddress) {
+        try {
+          const signedAt = Math.floor(Date.now() / 1000);
+          const traderBody = {
+            trader_id: agentId,
+            owner: npub,
+            eth_address: params.masterWalletAddress,
+            agent_address: params.walletAddress,
+            symbol: params.symbol!,
+            chain_id: params.chainId!,
+            protocol: params.protocol ?? "hyperliquid",
+            buy_limit_usd: buyLimit!,
+            execution_mode: "live",
+            signed_at: signedAt,
+          };
+          const signature = Signer.getSignature(traderBody, privateKey, {
+            trader_id: "number",
+            eth_address: "string",
+            symbol: "string",
+            chain_id: "number",
+            signed_at: "number",
+          } as const);
+
+          const res = await fetch(`${settlementEngineUrl}/traders`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-public-key": publicKey,
+              "x-signature": signature,
+            },
+            body: JSON.stringify(traderBody),
+          });
+          result.registerTrader = { ok: res.ok };
+          if (!res.ok) (result.registerTrader as any).error = `${res.status}`;
+        } catch (e: any) {
+          result.registerTrader = { ok: false, error: e.message };
+        }
+      }
+
+      // Step 4: Log action
+      try {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const sigData = {
+          agent_id: agentId,
+          action: "create",
+          user: Nip19.npubEncode(publicKey),
+          timestamp,
+        };
+        const signature = Signer.getSignature(sigData, privateKey, {
+          agent_id: "number",
+          action: "string",
+          user: "string",
+          timestamp: "number",
+        } as const);
+
+        const res = await fetch(`${baseUrl}/api/agent-action-log`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: auth,
+          },
+          body: JSON.stringify({
+            agentId,
+            action: "create",
+            signature,
+            timestamp,
+          }),
+        });
+        result.log = { ok: res.ok };
+      } catch {
+        result.log = { ok: false };
+      }
+
+      // Step 5: Verify
+      try {
+        const res = await fetch(`${baseUrl}/api/agent/${agentId}`);
+        if (res.ok) {
+          result.verify = { ok: true, agent: await res.json() };
+        } else {
+          result.verify = { ok: false };
+        }
+      } catch {
+        result.verify = { ok: false };
+      }
+
+      return textResult(result);
     },
   });
 

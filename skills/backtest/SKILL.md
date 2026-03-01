@@ -7,8 +7,10 @@ description: Run a backtest for a trading agent. Use when the user wants to back
 
 Follow these steps to run a backtest.
 
-## Step 1 — Ensure Nostr keys exist
-Call `get_or_create_nostr_keys` with no arguments. Do not display the private key or nsec unless explicitly asked.
+## Step 1 — Initialize session
+Call `init_trading_session` with mode `"paper"`. Handle the response:
+- **keys.generated = true**: Inform the user a new Nostr identity was created.
+- **access.hasAccess = false**: Ask for their wallet address, call `request_trading_access`, and tell them an admin must approve at https://agent.openswap.xyz/admin/waitlist. STOP here.
 
 ## Step 2 — Identify the agent
 If the user specified an agent ID, use it. Otherwise ask the user for the agent ID. Call `get_agent` to fetch the agent details (name, strategy, capital).
@@ -21,7 +23,7 @@ Ask the user for:
 - **Gas fee** (optional): fee override
 
 ## Step 4 — Optionally override strategy
-If the user wants to test a different strategy, build a new one (indicators, rules, risk_manager). For detailed schema references, see: `strategy-indicators`, `strategy-rules`, `strategy-risk`, and `strategy-examples` skills. Otherwise use the agent's existing strategy.
+If the user wants to test a different strategy, build a new one (indicators, rules, risk_manager). For detailed schema references, see the `strategy-reference` skill. Otherwise use the agent's existing strategy.
 
 ## Step 5 — Confirm before submitting
 Present a summary: agent name/ID, time range, initial capital, fees (if any), and strategy (existing or override). Ask the user to confirm before proceeding. Do NOT call `create_backtest` until the user explicitly confirms.
