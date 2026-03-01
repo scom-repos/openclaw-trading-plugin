@@ -21,7 +21,7 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
       "trading-plugin": {
         config: {
           baseUrl: "https://agent02.decom.dev",
-          tradingBotUrl: "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network",
+          tradingBotUrl: "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo",
           nostrPrivateKey: "${NOSTR_PRIVATE_KEY}",
           walletAgentUrl: "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent",
           settlementEngineUrl: "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine",
@@ -41,31 +41,22 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
 | `get_token_prices` | Get live prices of all tokens     |
 | `get_ohlc`         | Get OHLC candle data for a symbol |
 
-### Access Control
+### Identity & Access
 
-| Tool                       | Description                                          |
-| -------------------------- | ---------------------------------------------------- |
-| `check_trading_access`     | Check if the current user is whitelisted for trading |
-| `request_trading_access`   | Request trading access (requires admin approval)     |
+| Tool                     | Description                                      |
+| ------------------------ | ------------------------------------------------ |
+| `get_nostr_identity`     | Retrieve user's Nostr npub and public key        |
+| `request_trading_access` | Request trading access (requires admin approval) |
 
-### Trading
+### Session & Agent Management
 
-| Tool                       | Description                                |
-| -------------------------- | ------------------------------------------ |
-| `get_or_create_nostr_keys` | Generate or import Nostr keypair for auth  |
-| `get_trading_pairs`        | List available trading pairs               |
-| `create_agent`             | Create a trading agent (paper or live)     |
-| `notify_trading_bot`       | Send agent details to trading bot          |
-| `log_agent_action`         | Log an agent action for auditing           |
-| `get_agent`                | Get agent details by ID                    |
-
-### Live Trading (Hyperliquid)
-
-| Tool                  | Description                                        |
-| --------------------- | -------------------------------------------------- |
-| `store_wallet_in_tee` | Store agent wallet private key in TEE wallet agent |
-| `register_wallet`     | Register agent wallet in the backend               |
-| `register_trader`     | Register trader in the settlement engine           |
+| Tool                    | Description                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `init_trading_session`  | Initialize session: check keys, verify access, optionally list wallets          |
+| `setup_live_wallet`     | Store agent wallet key in TEE and register in backend                           |
+| `deploy_agent`          | Create agent, notify bot, register trader (live), log action, verify            |
+| `get_agent`             | Get agent details by ID                                                         |
+| `get_hyperliquid_balance` | Get USDC balance of a Hyperliquid master wallet                               |
 
 ### Backtesting
 
@@ -73,6 +64,15 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
 | --------------------- | ------------------------------------- |
 | `create_backtest`     | Submit a backtest job                 |
 | `get_backtests`       | List backtests for an agent           |
-| `get_backtest_status` | Check backtest job status             |
+| `get_backtest_status` | Check backtest job status (batch)     |
 | `get_backtest_job`    | Poll backtest job progress and status |
 | `get_backtest_result` | Get completed backtest results        |
+
+## Skills
+
+| Skill                | Description                              |
+| -------------------- | ---------------------------------------- |
+| `trade`              | Guided workflow for creating agents      |
+| `backtest`           | Guided workflow for running backtests    |
+| `strategy-reference` | Complete trading strategy schema reference |
+| `nostr-identity`     | Retrieve user's Nostr identity           |

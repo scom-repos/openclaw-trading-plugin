@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An OpenClaw plugin that exposes trading data APIs as agent tools. Registers two tools (`get_token_prices`, `get_ohlc`) that call `https://agent02.decom.dev` endpoints.
+An OpenClaw plugin for trading data, paper/live trading (Hyperliquid), and backtesting. Registers 15 tools and 4 skills. Uses Nostr cryptography for auth and communicates with 5 backend services.
 
 ## Commands
 
@@ -15,4 +15,31 @@ An OpenClaw plugin that exposes trading data APIs as agent tools. Registers two 
 
 ## Architecture
 
-Single-file plugin (`src/tools.ts`) using the OpenClaw `export default function(api)` pattern. Tools are registered via `api.registerTool()` with `@sinclair/typebox` schemas for parameters. Uses native `fetch` for HTTP calls. Base URL is configurable via `openclaw.plugin.json` config schema.
+Single-file plugin (`src/tools.ts`, ~936 lines) using the OpenClaw `export default function(api)` pattern. Tools are registered via `api.registerTool()` with `@sinclair/typebox` schemas for parameters. Uses native `fetch` for HTTP calls.
+
+### Key patterns
+
+- **Auth**: Nostr signing via `@scom/scom-signer` — generates Bearer tokens as `publicKey:signature`
+- **Composite tools**: `init_trading_session`, `setup_live_wallet`, `deploy_agent` orchestrate multiple API calls into single tool invocations
+- **Config loading**: Plugin config from `openclaw.plugin.json` → user config override → hardcoded defaults
+- **Responses**: Unified via `textResult()` wrapping data as JSON text content
+- **Debug logging**: Writes to `~/.openclaw/logs/trading-debug.json` (non-blocking)
+
+### Backend services
+
+| Config key             | Purpose                     |
+| ---------------------- | --------------------------- |
+| `baseUrl`              | Market data & agent APIs    |
+| `tradingBotUrl`        | Trading bot notifications   |
+| `walletAgentUrl`       | TEE wallet storage          |
+| `settlementEngineUrl`  | Trader registration         |
+| (hardcoded)            | Backtest engine             |
+
+### File structure
+
+```
+src/tools.ts           — All 15 tool registrations
+skills/                — 4 skill definitions (trade, backtest, strategy-reference, nostr-identity)
+scripts/               — Helper scripts (generate-agent-wallet, test-live-trading, create-ema-agent)
+openclaw.plugin.json   — Plugin config schema
+```
