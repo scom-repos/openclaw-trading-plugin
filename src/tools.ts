@@ -3,6 +3,7 @@ import { Keys, Nip19, Signer, Crypto } from "@scom/scom-signer";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { SUPPORTED_PAIRS } from "./supported-pairs.js";
 
 // ── Strategy schema ────────────────────────────────────────────────
 
@@ -211,6 +212,46 @@ export default function (api: any) {
       const res = await fetch(`${baseUrl}/api/ohlc?${qs}`);
       if (!res.ok) throw new Error(`ohlc failed: ${res.status}`);
       return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "get_supported_pairs",
+    description:
+      "Get supported trading pairs and which venues (protocol + chain) they are available on. " +
+      "Returns crypto pairs with venue availability and stock symbols (paper mode, signal simulation only). " +
+      "Use optional filters to narrow results by asset type or protocol.",
+    parameters: Type.Object({
+      assetType: Type.Optional(
+        Type.String({ description: '"crypto" or "stocks". Omit for all.' }),
+      ),
+      protocol: Type.Optional(
+        Type.String({
+          description:
+            '"uniswap", "hyperliquid", or "signal_simulation". Filters to pairs available on this protocol. Omit for all.',
+        }),
+      ),
+    }),
+    async execute(
+      _id: string,
+      params: { assetType?: string; protocol?: string },
+    ) {
+      let results = SUPPORTED_PAIRS;
+
+      if (params.assetType) {
+        results = results.filter((p) => p.asset_type === params.assetType);
+      }
+
+      if (params.protocol) {
+        results = results
+          .map((p) => ({
+            ...p,
+            venues: p.venues.filter((v) => v.protocol === params.protocol),
+          }))
+          .filter((p) => p.venues.length > 0);
+      }
+
+      return textResult({ pairs: results, total: results.length });
     },
   });
 
