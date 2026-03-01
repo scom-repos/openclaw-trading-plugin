@@ -7,7 +7,7 @@ import * as path from "node:path";
 // ── Strategy schema ────────────────────────────────────────────────
 
 const IndicatorConfig = Type.Object({
-  type: Type.String({ description: 'Indicator type: "rsi","sma","ema","macd","stochrsi","stochastic","bollinger","atr","renko","renko_atr","ohlc"' }),
+  type: Type.String({ description: 'Indicator type: "rsi","sma","ema","macd","stochrsi","stochastic","bollinger","atr","renko","renko_atr","ohlc". Outputs — single-value (rsi,sma,ema,atr): {name}. macd: {name}.macd, {name}.signal, {name}.histogram. stochrsi/stochastic: {name}.k, {name}.d. bollinger: {name}.upper, {name}.middle, {name}.lower. renko/renko_atr: {name}.brick_high, {name}.brick_low, {name}.direction. ohlc: {name}.open, {name}.high, {name}.low, {name}.close, {name}.volume. Use "price" for live tick price (no indicator needed).' }),
   name: Type.String({ description: 'Unique name referenced in rules, e.g. "ema_20_M15"' }),
   period: Type.Optional(Type.Number({ description: "Period/length (required for most)" })),
   timeframe: Type.Optional(Type.String({ description: '"M1","M5","M15","M30","H1","H4","D1"' })),
@@ -23,7 +23,7 @@ const SizeConfig = Type.Object({
 
 const OrderConfig = Type.Object({
   type: Type.String({ description: '"market"' }),
-  side: Type.Optional(Type.String({ description: '"long" or "short"' })),
+  side: Type.Optional(Type.String({ description: '"long" or "short" — required for both open and close rules (must match the position side being opened/closed)' })),
   size: Type.Optional(SizeConfig),
 });
 
