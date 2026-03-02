@@ -21,7 +21,7 @@ Config keys defined in `openclaw.plugin.json`. Set them in `~/.openclaw/config.j
       "trading-plugin": {
         config: {
           baseUrl: "https://agent02.decom.dev",
-          tradingBotUrl: "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo",
+          tradingBotUrl: "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network/trading-bot-demo",
           nostrPrivateKey: "${NOSTR_PRIVATE_KEY}",
           walletAgentUrl: "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent",
           settlementEngineUrl: "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine",

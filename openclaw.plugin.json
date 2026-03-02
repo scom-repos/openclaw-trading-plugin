@@ -11,7 +11,7 @@
       },
       "tradingBotUrl": {
         "type": "string",
-        "default": "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo"
+        "default": "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network/trading-bot-demo"
       },
       "nostrPrivateKey": {
         "type": "string"

@@ -91,7 +91,7 @@ const SimulationConfig = Type.Object({
 
 const DEFAULT_BASE_URL = "https://agent02.decom.dev";
 const DEFAULT_BOT_URL =
-  "https://c8fdf099a1934bcabb0ca29685ef945f8ed30148-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
+  "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
 const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
 const DEFAULT_WALLET_AGENT_URL =
   "https://8d8078ecb55660bce38d6f042b1eef9d70cb0dac-8081.dstack-pha-prod7.phala.network/wallet-agent";
