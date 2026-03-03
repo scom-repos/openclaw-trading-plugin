@@ -91,12 +91,12 @@ const SimulationConfig = Type.Object({
 
 const DEFAULT_BASE_URL = "https://agent02.decom.dev";
 const DEFAULT_BOT_URL =
-  "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network/trading-bot-demo";
+  "https://trading-agent.decom.dev";
 const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
 const DEFAULT_WALLET_AGENT_URL =
   "https://9740f18eea0cc47c42455e5ce03ab90bdb223c9f-8081.dstack-pha-prod5.phala.network/wallet-agent";
 const DEFAULT_SETTLEMENT_ENGINE_URL =
-  "https://e51f95b3070b6057428f52a1b312770b943ec275-8081.dstack-pha-prod9.phala.network/settlement-engine";
+  "https://settlement-agent.decom.dev";
 
 function loadKeys(config: any): {
   privateKey: string;

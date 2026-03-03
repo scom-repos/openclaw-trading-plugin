@@ -11,7 +11,7 @@
       },
       "tradingBotUrl": {
         "type": "string",
-        "default": "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network/trading-bot-demo"
+        "default": "https://trading-agent.decom.dev"
       },
       "nostrPrivateKey": {
         "type": "string"
@@ -22,7 +22,7 @@
       },
       "settlementEngineUrl": {
         "type": "string",
-        "default": "https://78ac0594e0a4d247df08bfbfdc5c8337548693c9-8081.dstack-pha-prod7.phala.network/settlement-engine"
+        "default": "https://settlement-agent.decom.dev"
       }
     }
   }

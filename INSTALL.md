@@ -32,7 +32,7 @@ Edit `~/.openclaw/openclaw.json` and add the plugin config (replace the placehol
       "trading-plugin": {
         "config": {
           "baseUrl": "https://agent02.decom.dev",
-          "tradingBotUrl": "https://727eeef91365e11f1714492c862b009cdc2915ad-8081.dstack-pha-prod9.phala.network",
+          "tradingBotUrl": "https://trading-agent.decom.dev",
           "nostrPrivateKey": "${NOSTR_PRIVATE_KEY}"
         }
       }
