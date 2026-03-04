@@ -788,18 +788,20 @@ export default function (api: any) {
       if (isLive && params.masterWalletAddress && params.walletAddress) {
         try {
           const signedAt = Math.floor(Date.now() / 1000);
-          const traderBody = {
+          const marketType = params.marketType ?? "perp";
+          const traderBody: Record<string, unknown> = {
             trader_id: agentId,
             owner: npub,
             eth_address: params.masterWalletAddress,
             agent_address: params.walletAddress,
             symbol: params.symbol!,
             chain_id: params.chainId!,
-            protocol: params.protocol ?? "hyperliquid",
+            market_type: marketType,
+            venue_type: marketType === "perp" ? "dex_orderbook" : "dex_amm",
             buy_limit_usd: buyLimit!,
-            execution_mode: "live",
             signed_at: signedAt,
           };
+          if (params.protocol) traderBody.protocol = params.protocol;
           const signature = Signer.getSignature(traderBody, privateKey, {
             trader_id: "number",
             eth_address: "string",
