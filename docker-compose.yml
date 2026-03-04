@@ -1,0 +1,15 @@
+services:
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    ports:
+      - "18789:18789"
+    volumes:
+      - ~/.openclaw:/home/node/.openclaw
+      - ~/openclaw/workspace:/home/node/workspace
+      - ./:/home/node/trading-plugin
+      - ./docker/entrypoint.sh:/home/node/entrypoint.sh
+    entrypoint: /home/node/entrypoint.sh
+    env_file:
+      - .env
+    environment:
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
