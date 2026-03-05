@@ -144,6 +144,45 @@ function textResult(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
 }
 
+async function fetchUsdcBalance(masterWalletAddress: string, chainId: number): Promise<number> {
+  const apiUrl = chainId === 999
+    ? "https://api.hyperliquid.xyz/info"
+    : "https://api.hyperliquid-testnet.xyz/info";
+
+  // Try Standard Account first
+  const chRes = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "clearinghouseState", user: masterWalletAddress }),
+  });
+  if (!chRes.ok) throw new Error(`clearinghouseState failed: ${chRes.status}`);
+  const chData = await chRes.json();
+  const withdrawable = parseFloat(chData.withdrawable ?? "0");
+  if (withdrawable > 0) return withdrawable;
+
+  // Try Unified Account (spotClearinghouseState)
+  const spotRes = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "spotClearinghouseState", user: masterWalletAddress }),
+  });
+  if (!spotRes.ok) throw new Error(`spotClearinghouseState failed: ${spotRes.status}`);
+  const spotData = await spotRes.json();
+
+  let balance = 0;
+  const tokenAvail = spotData.tokenToAvailableAfterMaintenance;
+  if (Array.isArray(tokenAvail)) {
+    const usdcEntry = tokenAvail.find((e: any) => e[0] === 0);
+    if (usdcEntry) balance = parseFloat(usdcEntry[1]);
+  }
+  if (balance === 0 && Array.isArray(spotData.balances)) {
+    const usdcBal = spotData.balances.find((b: any) => b.coin === "USDC");
+    if (usdcBal) balance = parseFloat(usdcBal.total ?? "0");
+  }
+
+  return balance;
+}
+
 export default function (api: any) {
   const pluginConfig = api.config?.plugins?.entries?.["trading-plugin"]?.config ?? api.config ?? {};
   const baseUrl: string = pluginConfig.baseUrl ?? DEFAULT_BASE_URL;
@@ -307,47 +346,10 @@ export default function (api: any) {
       params: { masterWalletAddress: string; chainId?: number },
     ) {
       const chainId = params.chainId ?? 998;
-      const apiUrl = chainId === 999
-        ? "https://api.hyperliquid.xyz/info"
-        : "https://api.hyperliquid-testnet.xyz/info";
-
-      // Try Standard Account first
-      const chRes = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "clearinghouseState", user: params.masterWalletAddress }),
-      });
-      if (!chRes.ok) throw new Error(`clearinghouseState failed: ${chRes.status}`);
-      const chData = await chRes.json();
-      const withdrawable = parseFloat(chData.withdrawable ?? "0");
-      if (withdrawable > 0) {
-        return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance: withdrawable, accountType: "standard" });
-      }
-
-      // Try Unified Account (spotClearinghouseState)
-      const spotRes = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "spotClearinghouseState", user: params.masterWalletAddress }),
-      });
-      if (!spotRes.ok) throw new Error(`spotClearinghouseState failed: ${spotRes.status}`);
-      const spotData = await spotRes.json();
-
-      let balance = 0;
-      // Prefer tokenToAvailableAfterMaintenance (Unified Accounts with positions)
-      const tokenAvail = spotData.tokenToAvailableAfterMaintenance;
-      if (Array.isArray(tokenAvail)) {
-        const usdcEntry = tokenAvail.find((e: any) => e[0] === 0);
-        if (usdcEntry) balance = parseFloat(usdcEntry[1]);
-      }
-      // Fallback to balances array
-      if (balance === 0 && Array.isArray(spotData.balances)) {
-        const usdcBal = spotData.balances.find((b: any) => b.coin === "USDC");
-        if (usdcBal) balance = parseFloat(usdcBal.total ?? "0");
-      }
+      const balance = await fetchUsdcBalance(params.masterWalletAddress, chainId);
 
       if (balance > 0) {
-        return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance, accountType: "unified" });
+        return textResult({ masterWalletAddress: params.masterWalletAddress, chainId, balance });
       } else {
         const appUrl = chainId === 999
           ? "https://app.hyperliquid.xyz"
@@ -356,7 +358,6 @@ export default function (api: any) {
           masterWalletAddress: params.masterWalletAddress,
           chainId,
           balance,
-          accountType: "unified",
           depositReminder:
             `Your wallet has 0 USDC balance. You must deposit USDC into your Hyperliquid wallet before you can trade. ` +
             `Deposit here: ${appUrl}`,
@@ -637,7 +638,7 @@ export default function (api: any) {
     description: "Create a trading agent, notify bot, register trader (live), log action, and verify. Replaces sequential calls to create_agent + notify_trading_bot + register_trader + log_agent_action + get_agent.",
     parameters: Type.Object({
       name: Type.String({ description: "Agent name" }),
-      initialCapital: Type.Number({ description: "Initial capital amount" }),
+      initialCapital: Type.Optional(Type.Number({ description: "Initial capital amount (auto-fetched for live mode)" })),
       mode: Type.Optional(Type.String({ description: '"paper" or "live"', default: "paper" })),
       marketType: Type.Optional(Type.String({ description: '"spot" or "perp"', default: "spot" })),
       strategy: Strategy,
@@ -655,7 +656,7 @@ export default function (api: any) {
       _id: string,
       params: {
         name: string;
-        initialCapital: number;
+        initialCapital?: number;
         mode?: string;
         marketType?: string;
         strategy: Record<string, unknown>;
@@ -677,9 +678,29 @@ export default function (api: any) {
       debugLog("deploy_agent", "entry", params);
       const result: Record<string, unknown> = {};
 
+      // Auto-fetch initial capital for live mode
+      let initialCapital = params.initialCapital;
+      if (isLive && initialCapital == null && params.masterWalletAddress) {
+        const chainId = params.chainId ?? 998;
+        const balance = await fetchUsdcBalance(params.masterWalletAddress, chainId);
+        if (balance === 0) {
+          const appUrl = chainId === 999
+            ? "https://app.hyperliquid.xyz"
+            : "https://app.hyperliquid-testnet.xyz";
+          return textResult({
+            error: `Wallet ${params.masterWalletAddress} has 0 USDC balance. Deposit USDC before deploying: ${appUrl}`,
+          });
+        }
+        initialCapital = balance;
+        debugLog("deploy_agent", "auto-fetched balance", { initialCapital });
+      }
+      if (initialCapital == null) {
+        return textResult({ error: "initialCapital is required for paper mode" });
+      }
+
       // Auto-compute buyLimit and settlement_config for live
       const buyLimit = isLive && params.leverage
-        ? params.initialCapital * params.leverage
+        ? initialCapital * params.leverage
         : undefined;
       const settlementConfig = isLive && params.masterWalletAddress && params.walletAddress
         ? { eth_address: params.masterWalletAddress, agent_address: params.walletAddress }
@@ -693,7 +714,7 @@ export default function (api: any) {
         const payload: Record<string, unknown> = {
           name: params.name,
           avatarUrl: "",
-          initialCapital: params.initialCapital,
+          initialCapital,
           mode,
           marketType: params.marketType ?? "spot",
           owner: npub,
@@ -740,7 +761,7 @@ export default function (api: any) {
           name: params.name,
           owner: npub,
           avatar_url: null,
-          initial_capital: params.initialCapital,
+          initial_capital: initialCapital,
           strategy_config: params.strategy,
           description: params.strategyDescription ?? null,
           mode,

@@ -71,7 +71,7 @@ If the user says something general like "EMA crossover", construct a reasonable 
 If live: ask the user for their desired leverage and set it in `strategy.risk_manager.leverage`.
 
 ## Step 6 — Determine initial capital
-- **Live**: Call `get_hyperliquid_balance` with `masterWalletAddress` and `chainId`. Save the returned `balance` as `initialCapital`. If balance is 0, warn the user and STOP.
+- **Live**: `deploy_agent` auto-fetches the wallet balance as initial capital. **Do NOT ask the user for initial capital in live mode.** Do NOT call `get_hyperliquid_balance` separately — the deploy step handles it.
 - **Paper**: Ask the user for their desired initial capital.
 
 ## Step 7 — Confirm before creating
@@ -85,10 +85,10 @@ Ask the user to confirm. Do NOT proceed until they explicitly confirm.
 
 ## Step 8 — Deploy agent
 Call `deploy_agent` with:
-- `name`, `initialCapital`, `strategy`, `mode`
-- Paper: `marketType` (spot/perp), `simulationConfig` — defaults: spot → `{"asset_type":"crypto","protocol":"uniswap","chain_id":1}`, perp → `{"asset_type":"crypto","protocol":"hyperliquid","chain_id":998}`, stocks → `{"asset_type":"stocks"}`
+- `name`, `strategy`, `mode`
+- Paper: `initialCapital`, `marketType` (spot/perp), `simulationConfig` — defaults: spot → `{"asset_type":"crypto","protocol":"uniswap","chain_id":1}`, perp → `{"asset_type":"crypto","protocol":"hyperliquid","chain_id":998}`, stocks → `{"asset_type":"stocks"}`
 - If perp: `leverage` (same as `strategy.risk_manager.leverage`)
-- Live: `marketType: "perp"`, `leverage`, `walletId`, `walletAddress`, `masterWalletAddress`, `symbol`, `protocol: "hyperliquid"`, `chainId`
+- Live: `marketType: "perp"`, `leverage`, `walletId`, `walletAddress`, `masterWalletAddress`, `symbol`, `protocol: "hyperliquid"`, `chainId` (do NOT pass `initialCapital` — it is auto-fetched from wallet balance)
 
 Handle the response:
 - **create.ok = false**: Report error and STOP.
