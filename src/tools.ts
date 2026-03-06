@@ -698,9 +698,12 @@ export default function (api: any) {
         return textResult({ error: "initialCapital is required for paper mode" });
       }
 
+      // Default leverage to 3x for live mode
+      const leverage = isLive ? (params.leverage ?? 3) : params.leverage;
+
       // Auto-compute buyLimit and settlement_config for live
-      const buyLimit = isLive && params.leverage
-        ? initialCapital * params.leverage
+      const buyLimit = isLive && leverage
+        ? initialCapital * leverage
         : undefined;
       const settlementConfig = isLive && params.masterWalletAddress && params.walletAddress
         ? { eth_address: params.masterWalletAddress, agent_address: params.walletAddress }
@@ -721,7 +724,7 @@ export default function (api: any) {
           pubkey: Nip19.npubEncode(publicKey),
           isActive: true,
         };
-        if (params.leverage != null) payload.leverage = params.leverage;
+        if (leverage != null) payload.leverage = leverage;
         if (buyLimit != null) payload.buyLimit = buyLimit;
         if (params.chainId != null) payload.chainId = params.chainId;
         if (params.simulationConfig) payload.simulationConfig = params.simulationConfig;

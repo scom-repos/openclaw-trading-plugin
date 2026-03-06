@@ -68,7 +68,7 @@ If the user says something general like "EMA crossover", construct a reasonable 
 }
 ```
 
-If live: ask the user for their desired leverage and set it in `strategy.risk_manager.leverage`.
+If live: leverage defaults to 3x. **Do NOT ask the user for leverage** unless they explicitly specify a different value. Set `strategy.risk_manager.leverage` accordingly.
 
 ## Step 6 — Determine initial capital
 - **Live**: `deploy_agent` auto-fetches the wallet balance as initial capital. **Do NOT ask the user for initial capital in live mode.** Do NOT call `get_hyperliquid_balance` separately — the deploy step handles it.
