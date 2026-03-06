@@ -905,6 +905,170 @@ export default function (api: any) {
     },
   });
 
+  // ── List & delete tools ────────────────────────────────────────────
+
+  api.registerTool({
+    name: "list_my_agents",
+    description: "List all trading agents owned by the current user",
+    parameters: Type.Object({
+      mode: Type.Optional(Type.String({ description: '"live" or "paper"' })),
+      marketType: Type.Optional(Type.String({ description: '"spot" or "perp"' })),
+      page: Type.Optional(Type.Number({ description: "Page number (default 1)" })),
+      pageSize: Type.Optional(Type.Number({ description: "Results per page" })),
+    }),
+    async execute(_id: string, params: { mode?: string; marketType?: string; page?: number; pageSize?: number }) {
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const qs = new URLSearchParams();
+      if (params.mode) qs.set("mode", params.mode);
+      if (params.marketType) qs.set("marketType", params.marketType);
+      if (params.page) qs.set("page", String(params.page));
+      if (params.pageSize) qs.set("pageSize", String(params.pageSize));
+      const url = `${baseUrl}/api/my-agents${qs.toString() ? `?${qs}` : ""}`;
+      const res = await fetch(url, { headers: { Authorization: auth } });
+      if (!res.ok) throw new Error(`list_my_agents failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "delete_agent",
+    description: "Delete a trading agent by ID. Removes from all backend services.",
+    parameters: Type.Object({
+      agentId: Type.Number({ description: "Agent ID to delete" }),
+    }),
+    async execute(_id: string, params: { agentId: number }) {
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
+      const npub = Nip19.npubEncode(publicKey);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const result: Record<string, unknown> = {};
+      const signedAt = Math.floor(Date.now() / 1000);
+      debugLog("delete_agent", "entry", { agentId: params.agentId });
+
+      // Fetch agent to determine mode
+      const agentRes = await fetch(`${baseUrl}/api/agent/${params.agentId}`);
+      if (!agentRes.ok) return textResult({ error: `Agent ${params.agentId} not found: ${agentRes.status}` });
+      const agentData = await agentRes.json();
+      const isLive = agentData?.data?.mode === "live";
+
+      // Step 1: Deactivate trader in settlement engine (live only)
+      if (isLive) {
+        try {
+          const body = { trader_id: params.agentId, signed_at: signedAt };
+          const signature = Signer.getSignature(body, privateKey, {
+            trader_id: "number", signed_at: "number",
+          } as const);
+          const res = await fetch(`${settlementEngineUrl}/traders/${params.agentId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", "x-public-key": publicKey, "x-signature": signature },
+            body: JSON.stringify(body),
+          });
+          debugLog("delete_agent", "settlement.res", { status: res.status });
+          result.settlement = { ok: res.ok };
+        } catch (e: any) {
+          result.settlement = { ok: false, error: e.message };
+        }
+      }
+
+      // Step 2: Delete from trading-data
+      try {
+        const sigData = { agent_id: params.agentId, action: "delete", user: npub, timestamp: signedAt };
+        const signature = Signer.getSignature(sigData, privateKey, {
+          agent_id: "number", action: "string", user: "string", timestamp: "number",
+        } as const);
+        const res = await fetch(`${baseUrl}/api/agent/${params.agentId}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: auth },
+          body: JSON.stringify({ signature, timestamp: signedAt }),
+        });
+        debugLog("delete_agent", "trading-data.res", { status: res.status });
+        result.tradingData = { ok: res.ok };
+      } catch (e: any) {
+        result.tradingData = { ok: false, error: e.message };
+      }
+
+      // Step 3: Delete from trading-bot
+      try {
+        const res = await fetch(`${tradingBotUrl}/agents/${params.agentId}?signed_at=${signedAt}`, {
+          method: "DELETE",
+        });
+        debugLog("delete_agent", "trading-bot.res", { status: res.status });
+        result.tradingBot = { ok: res.ok };
+      } catch (e: any) {
+        result.tradingBot = { ok: false, error: e.message };
+      }
+
+      debugLog("delete_agent", "result", result);
+      return textResult(result);
+    },
+  });
+
+  api.registerTool({
+    name: "list_wallets",
+    description: "List all wallets registered to the current user",
+    parameters: Type.Object({}),
+    async execute() {
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const res = await fetch(`${baseUrl}/api/wallets?npub=${Nip19.npubEncode(publicKey)}`, {
+        headers: { Authorization: auth },
+      });
+      if (!res.ok) throw new Error(`list_wallets failed: ${res.status}`);
+      return textResult(await res.json());
+    },
+  });
+
+  api.registerTool({
+    name: "delete_wallet",
+    description: "Delete a wallet by address. Removes from TEE storage and trading-data.",
+    parameters: Type.Object({
+      walletAddress: Type.String({ description: "Wallet address (0x...) to delete" }),
+    }),
+    async execute(_id: string, params: { walletAddress: string }) {
+      const { privateKey, publicKey } = loadKeys(pluginConfig);
+      const npub = Nip19.npubEncode(publicKey);
+      const auth = getAuthHeader(publicKey, privateKey);
+      const result: Record<string, unknown> = {};
+      const signedAt = Math.floor(Date.now() / 1000);
+      debugLog("delete_wallet", "entry", { walletAddress: params.walletAddress });
+
+      // Step 1: Remove from wallet-agent (TEE)
+      try {
+        const body = { wallet_address: params.walletAddress, signed_at: signedAt };
+        const res = await fetch(`${walletAgentUrl}/wallets/${params.walletAddress}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        debugLog("delete_wallet", "tee.res", { status: res.status });
+        result.tee = { ok: res.ok };
+      } catch (e: any) {
+        result.tee = { ok: false, error: e.message };
+      }
+
+      // Step 2: Remove from trading-data
+      try {
+        const createdAt = signedAt;
+        const sigData = { created_at: createdAt, wallet_address: params.walletAddress, action: "disconnected", npub };
+        const signature = Signer.getSignature(sigData, privateKey, {
+          created_at: "number", wallet_address: "string", action: "string", npub: "string",
+        } as const);
+        const res = await fetch(`${baseUrl}/api/wallets`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: auth },
+          body: JSON.stringify({ npub, walletAddress: params.walletAddress, signature, createdAt, agents: [] }),
+        });
+        debugLog("delete_wallet", "trading-data.res", { status: res.status });
+        result.tradingData = { ok: res.ok };
+      } catch (e: any) {
+        result.tradingData = { ok: false, error: e.message };
+      }
+
+      debugLog("delete_wallet", "result", result);
+      return textResult(result);
+    },
+  });
+
   // ── Backtest tools ──────────────────────────────────────────────
 
   api.registerTool({
