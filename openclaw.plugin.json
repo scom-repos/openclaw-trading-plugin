@@ -23,6 +23,23 @@
       "settlementEngineUrl": {
         "type": "string",
         "default": "https://settlement-agent.decom.dev"
+      },
+      "mqttBrokerUrl": {
+        "type": "string"
+      },
+      "mqttPort": {
+        "type": "number",
+        "default": 8883
+      },
+      "mqttUsername": {
+        "type": "string"
+      },
+      "mqttPassword": {
+        "type": "string"
+      },
+      "mqttFillExecutionsTopic": {
+        "type": "string",
+        "default": "fill_executions"
       }
     }
   }

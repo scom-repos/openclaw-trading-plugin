@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { Keys, Nip19, Signer, Crypto } from "@scom/scom-signer";
+import mqtt from "mqtt";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -1179,4 +1180,68 @@ export default function (api: any) {
       return textResult(await res.json());
     },
   });
+
+  // ── Fill execution notifications ─────────────────────────────────
+
+  function formatFillNotification(event: any): string {
+    const { agent_name, symbol, side, is_entry, base_amount, execution_price, success } = event;
+    if (!success) return `[Trade Failed] ${agent_name}: ${symbol} ${side} failed`;
+    const action = is_entry ? "Opened" : "Closed";
+    return `[Trade] ${agent_name}: ${action} ${side} ${base_amount} ${symbol} @ $${execution_price}`;
+  }
+
+  async function sendNotification(message: string) {
+    const token = process.env.OPENCLAW_GATEWAY_TOKEN;
+    if (!token) return;
+    try {
+      await fetch("http://127.0.0.1:18789/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          messages: [
+            { role: "user", content: `Relay this notification to the user verbatim:\n\n${message}` },
+          ],
+        }),
+      });
+    } catch (e: any) {
+      debugLog("fill-notifications", "send-failed", e.message);
+    }
+  }
+
+  const mqttBrokerUrl: string | undefined = pluginConfig.mqttBrokerUrl;
+  if (mqttBrokerUrl) {
+    const mqttTopic: string = pluginConfig.mqttFillExecutionsTopic ?? "fill_executions";
+
+    api.registerService({
+      name: "fill-notifications",
+      start() {
+        const client = mqtt.connect(mqttBrokerUrl, {
+          port: pluginConfig.mqttPort ?? 8883,
+          username: pluginConfig.mqttUsername,
+          password: pluginConfig.mqttPassword,
+          reconnectPeriod: 5000,
+          protocol: "mqtts",
+        });
+
+        client.on("connect", () => {
+          client.subscribe(mqttTopic);
+        });
+
+        client.on("message", (_topic: string, payload: Buffer) => {
+          try {
+            const event = JSON.parse(payload.toString());
+            const msg = formatFillNotification(event);
+            sendNotification(msg);
+          } catch (e: any) {
+            debugLog("fill-notifications", "parse-error", e.message);
+          }
+        });
+
+        this.client = client;
+      },
+      stop() {
+        this.client?.end();
+      },
+    });
+  }
 }

@@ -49,6 +49,10 @@ if (env.PLUGIN_BASE_URL) pc.baseUrl = env.PLUGIN_BASE_URL;
 if (env.PLUGIN_TRADING_BOT_URL) pc.tradingBotUrl = env.PLUGIN_TRADING_BOT_URL;
 if (env.PLUGIN_WALLET_AGENT_URL) pc.walletAgentUrl = env.PLUGIN_WALLET_AGENT_URL;
 if (env.PLUGIN_SETTLEMENT_ENGINE_URL) pc.settlementEngineUrl = env.PLUGIN_SETTLEMENT_ENGINE_URL;
+if (env.PLUGIN_MQTT_BROKER_URL) pc.mqttBrokerUrl = env.PLUGIN_MQTT_BROKER_URL;
+if (env.PLUGIN_MQTT_PORT) pc.mqttPort = Number(env.PLUGIN_MQTT_PORT);
+if (env.PLUGIN_MQTT_USERNAME) pc.mqttUsername = env.PLUGIN_MQTT_USERNAME;
+if (env.PLUGIN_MQTT_PASSWORD) pc.mqttPassword = env.PLUGIN_MQTT_PASSWORD;
 
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 "
