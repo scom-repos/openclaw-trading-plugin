@@ -1190,22 +1190,38 @@ export default function (api: any) {
     return `[Trade] ${agent_name}: ${action} ${side} ${base_amount} ${symbol} @ $${execution_price}`;
   }
 
-  async function sendNotification(message: string) {
-    const token = process.env.OPENCLAW_GATEWAY_TOKEN;
-    if (!token) return;
+  function readOpenClawConfig(): { botToken: string | null; chatId: string | null } {
+    const openclawDir = path.join(os.homedir(), ".openclaw");
+    let botToken: string | null = null;
+    let chatId: string | null = null;
     try {
-      await fetch("http://127.0.0.1:18789/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          messages: [
-            { role: "user", content: `Relay this notification to the user verbatim:\n\n${message}` },
-          ],
-        }),
-      });
-    } catch (e: any) {
-      debugLog("fill-notifications", "send-failed", e.message);
+      const config = JSON.parse(fs.readFileSync(path.join(openclawDir, "openclaw.json"), "utf8"));
+      botToken = config.channels?.telegram?.botToken ?? null;
+    } catch {}
+    try {
+      const allowFrom = JSON.parse(fs.readFileSync(path.join(openclawDir, "credentials", "telegram-allowFrom.json"), "utf8"));
+      chatId = allowFrom.allowFrom?.[0] ?? null;
+    } catch {}
+    return { botToken, chatId };
+  }
+
+  let telegramBotToken: string | null = null;
+  let telegramChatId: string | null = null;
+
+  async function sendNotification(message: string) {
+    if (!telegramBotToken || !telegramChatId) {
+      const config = readOpenClawConfig();
+      telegramBotToken = config.botToken;
+      telegramChatId = config.chatId;
+      if (!telegramBotToken || !telegramChatId) return;
     }
+    try {
+      await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: telegramChatId, text: message }),
+      });
+    } catch {}
   }
 
   const mqttBrokerUrl: string | undefined = pluginConfig.mqttBrokerUrl;
@@ -1213,14 +1229,16 @@ export default function (api: any) {
     const mqttTopic: string = pluginConfig.mqttFillExecutionsTopic ?? "fill_executions";
 
     api.registerService({
-      name: "fill-notifications",
+      id: "fill-notifications",
       start() {
-        const client = mqtt.connect(mqttBrokerUrl, {
-          port: pluginConfig.mqttPort ?? 8883,
+        const mqttPort = pluginConfig.mqttPort ?? 8883;
+        const mqttProtocol = mqttPort === 8883 || mqttPort === 443 ? "mqtts" : "mqtt";
+        const client = mqtt.connect(`${mqttProtocol}://${mqttBrokerUrl}`, {
+          port: mqttPort,
           username: pluginConfig.mqttUsername,
           password: pluginConfig.mqttPassword,
           reconnectPeriod: 5000,
-          protocol: "mqtts",
+          protocol: mqttProtocol,
         });
 
         client.on("connect", () => {
