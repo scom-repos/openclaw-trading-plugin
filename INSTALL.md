@@ -32,10 +32,10 @@ Edit `~/.openclaw/openclaw.json` and add the plugin config:
       "trading-plugin": {
         "config": {
           "nostrPrivateKey": "${NOSTR_PRIVATE_KEY}",
-          "mqttBrokerUrl": "${MQTT_BROKER_URL}",
-          "mqttPort": 8883,
-          "mqttUsername": "${MQTT_USERNAME}",
-          "mqttPassword": "${MQTT_PASSWORD}"
+          "mqttBrokerUrl": "${MQTT_BROKER_URL}", // optional
+          "mqttPort": 8883, // optional
+          "mqttUsername": "${MQTT_USERNAME}", // optional
+          "mqttPassword": "${MQTT_PASSWORD}" // optional
         }
       }
     }
