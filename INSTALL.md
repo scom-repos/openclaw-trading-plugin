@@ -23,7 +23,7 @@ openclaw plugins install -l .
 
 ## 3. Configure the Plugin
 
-Edit `~/.openclaw/openclaw.json` and add the plugin config (replace the placeholder with your Nostr private key):
+Edit `~/.openclaw/openclaw.json` and add the plugin config:
 
 ```json
 {
@@ -31,15 +31,25 @@ Edit `~/.openclaw/openclaw.json` and add the plugin config (replace the placehol
     "entries": {
       "trading-plugin": {
         "config": {
-          "baseUrl": "https://agent02.decom.dev",
-          "tradingBotUrl": "https://trading-agent.decom.dev",
-          "nostrPrivateKey": "${NOSTR_PRIVATE_KEY}"
+          "nostrPrivateKey": "${NOSTR_PRIVATE_KEY}",
+          "mqttBrokerUrl": "${MQTT_BROKER_URL}",
+          "mqttPort": 8883,
+          "mqttUsername": "${MQTT_USERNAME}",
+          "mqttPassword": "${MQTT_PASSWORD}"
         }
       }
     }
   }
 }
 ```
+
+Replace the placeholders:
+
+- `${NOSTR_PRIVATE_KEY}` — your Nostr private key (hex)
+- `${MQTT_BROKER_URL}` — MQTT broker hostname (e.g. `abc123.s1.eu.hivemq.cloud`)
+- `${MQTT_USERNAME}` / `${MQTT_PASSWORD}` — MQTT credentials
+
+The MQTT connection enables real-time trade fill notifications via Telegram. The plugin subscribes to the `fill_executions` topic and forwards events to your Telegram chat.
 
 ## 4. Start the Gateway
 

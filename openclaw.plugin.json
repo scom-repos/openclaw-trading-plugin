@@ -25,17 +25,20 @@
         "default": "https://settlement-agent.decom.dev"
       },
       "mqttBrokerUrl": {
-        "type": "string"
+        "type": "string",
+        "default": "your-mqtt-broker.example.com"
       },
       "mqttPort": {
         "type": "number",
         "default": 8883
       },
       "mqttUsername": {
-        "type": "string"
+        "type": "string",
+        "default": "your_username"
       },
       "mqttPassword": {
-        "type": "string"
+        "type": "string",
+        "default": "your_password"
       },
       "mqttFillExecutionsTopic": {
         "type": "string",
