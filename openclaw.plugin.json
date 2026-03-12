@@ -18,7 +18,7 @@
       },
       "walletAgentUrl": {
         "type": "string",
-        "default": "https://9740f18eea0cc47c42455e5ce03ab90bdb223c9f-8081.dstack-pha-prod5.phala.network/wallet-agent"
+        "default": "https://wallet-agent.decom.dev"
       },
       "settlementEngineUrl": {
         "type": "string",

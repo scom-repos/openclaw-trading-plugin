@@ -95,7 +95,7 @@ const DEFAULT_BOT_URL =
   "https://trading-agent.decom.dev";
 const DEFAULT_BACKTEST_ENGINE_URL = "https://mcp-backtest01.decom.dev";
 const DEFAULT_WALLET_AGENT_URL =
-  "https://9740f18eea0cc47c42455e5ce03ab90bdb223c9f-8081.dstack-pha-prod5.phala.network/wallet-agent";
+  "https://wallet-agent.decom.dev";
 const DEFAULT_SETTLEMENT_ENGINE_URL =
   "https://settlement-agent.decom.dev";
 
